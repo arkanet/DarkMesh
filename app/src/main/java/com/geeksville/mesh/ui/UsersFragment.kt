@@ -63,6 +63,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.activityViewModels
@@ -298,7 +299,9 @@ fun RelayInfoBox(relayNode: RelayEvent, model: UIViewModel) {
 
                 Text(
                     text = "Closest Relay Confidence :",
-                    fontSize = 14.sp
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 Box(
@@ -312,7 +315,9 @@ fun RelayInfoBox(relayNode: RelayEvent, model: UIViewModel) {
                     Text(
                         text = confidence,
                         color = Color.Black,
-                        style = MaterialTheme.typography.labelSmall
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -337,7 +342,9 @@ fun RelayInfoBox(relayNode: RelayEvent, model: UIViewModel) {
                     Text(
                         color = Color(foregroundColor),
                         text = shortName,
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -353,7 +360,9 @@ fun RelayInfoBox(relayNode: RelayEvent, model: UIViewModel) {
                         Text(
                             text = "SNR ${rxSnr}dB",
                             color = Color.Black,
-                            style = MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -370,13 +379,17 @@ fun RelayInfoBox(relayNode: RelayEvent, model: UIViewModel) {
                         Text(
                             text = "RSSI ${rxRssi}dBm",
                             color = Color.Black,
-                            style = MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
                 Text(
                     text = timeLabel,
-                    fontSize = 14.sp
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
