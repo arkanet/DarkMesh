@@ -261,6 +261,7 @@ class MeshService : Service(), Logging {
     private val batteryAlertPrefsListener =
         SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key in BATTERY_ALERT_PREFERENCE_KEYS) {
+                serviceNotifications.resetBatteryAlertChannels()
                 clearLowBatteryAlertState()
             }
         }
@@ -1208,6 +1209,19 @@ class MeshService : Service(), Logging {
         }
 
         val settings = uiPrefs.getBatteryAlertSettings()
+        val source = if (myNodeInfo?.myNodeNum == nodeNum) {
+            BatteryAlertSource.CONNECTED_NODE
+        } else {
+            BatteryAlertSource.MESH
+        }
+        if (!settings.allows(source)) {
+            if (previousLevel != BatteryAlertLevel.NONE) {
+                lowBatteryAlertLevels.remove(nodeNum)
+                serviceNotifications.cancelLowBatteryNotification(nodeNum)
+            }
+            return
+        }
+
         val node = nodeDBbyNodeNum[nodeNum] ?: return
         val nextLevel = BatteryAlertEvaluator.nextLevel(
             previousLevel = previousLevel,
@@ -1227,7 +1241,12 @@ class MeshService : Service(), Logging {
             BatteryAlertLevel.CRITICAL -> {
                 lowBatteryAlertLevels[nodeNum] = nextLevel
                 if (nextLevel != previousLevel) {
-                    serviceNotifications.showLowBatteryNotification(node, nextLevel)
+                    serviceNotifications.showLowBatteryNotification(
+                        node = node,
+                        level = nextLevel,
+                        source = source,
+                        soundUri = settings.soundUriFor(source),
+                    )
                 }
             }
         }
