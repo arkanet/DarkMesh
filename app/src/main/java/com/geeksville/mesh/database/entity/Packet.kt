@@ -27,6 +27,7 @@ import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.model.Message
 import com.geeksville.mesh.model.Node
 import com.geeksville.mesh.util.getShortDateTime
+import org.meshtastic.proto.ConfigProtos
 import org.meshtastic.proto.MeshProtos.User
 
 data class PacketEntity(
@@ -86,6 +87,7 @@ data class Packet(
 
             val candidates = nodes.filter {
                 it.num != ourNodeNum &&
+                        ConfigProtos.Config.DeviceConfig.Role.CLIENT_MUTE.name != it.role //client mute does not rebroadcast
                         it.lastHeard != 0 &&
                         (it.num and RELAY_NODE_SUFFIX_MASK) == relayNodeIdSuffix
             }

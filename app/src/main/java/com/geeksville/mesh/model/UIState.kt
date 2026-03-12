@@ -387,7 +387,7 @@ class UIViewModel @Inject constructor(
         radioConfigRepository.relayEvents
             .onEach { relayEvent ->
 
-                val nodes = nodeDB.nodeDBbyNum.value.values.toList()
+                val nodes = nodeList.value
                 val ourNodeNum = ourNodeInfo.value?.num
 
                 if (relayEvent.relayNodeLastByte > 0){ //relayed packets
@@ -414,6 +414,11 @@ class UIViewModel @Inject constructor(
                     nodes.firstOrNull { it.num == relayEvent.relayNodeNum }?.let {
                      matchingNode ->
 
+                        if(Config.DeviceConfig.Role.CLIENT_MUTE.name == matchingNode.role){
+                            //client mute does not rebroadcast packets so we skip this
+                            return@let
+                        }
+
                         relayEvent.nodeLongName = matchingNode.user.longName
                         relayEvent.nodeShortName = matchingNode.user.shortName
                         updateLastRelayNode(relayEvent)
@@ -428,6 +433,11 @@ class UIViewModel @Inject constructor(
                         nodes.firstOrNull { node ->
                             longName.contains(node.user.longName)
                         }?.let { match ->
+
+                            if(Config.DeviceConfig.Role.CLIENT_MUTE.name == match.role){
+                                //client mute does not rebroadcast packets so we skip this
+                                return@let
+                            }
 
                             relayEvent.nodeLongName = match.user.longName
                             relayEvent.nodeShortName = match.user.shortName
