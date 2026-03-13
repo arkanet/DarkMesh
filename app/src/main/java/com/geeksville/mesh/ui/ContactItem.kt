@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -69,6 +70,9 @@ fun ContactItem(
 
     val isChannel = contactKey.contains(ID_BROADCAST)
 
+    // zero is default like medium fast, short turbo.. etc
+    val isDefaultChannnel = isChannel && "0" == contact.shortName
+
     Card(
         modifier = Modifier
             .background(color = if (selected) Color.Gray else MaterialTheme.colors.background)
@@ -82,12 +86,7 @@ fun ContactItem(
                 onClick = onClick,
                 onLongClick = onLongClick,
             ),
-            // zero is default like medium fast, short turbo.. etc
-            color = if (isChannel && "0" == contact.shortName) {
-                MaterialTheme.colors.secondary.copy(alpha = 0.05f)
-            } else {
-                MaterialTheme.colors.surface
-            }
+            color = MaterialTheme.colors.surface
         ) {
             Row(
                 modifier = Modifier
@@ -103,6 +102,11 @@ fun ContactItem(
                         modifier = Modifier
                             .padding(end = 8.dp)
                             .width(50.dp),
+                        colorFilter = if (isDefaultChannnel){
+                            ColorFilter.tint(Color.Green)
+                        } else {
+                            ColorFilter.tint(MaterialTheme.colors.primary)
+                        }
                     )
                 } else {
                     Image(
@@ -123,8 +127,14 @@ fun ContactItem(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
+                        var name = longName
+
+                        if(isDefaultChannnel){
+                            name += " (Public)"
+                        }
+
                         Text(
-                            text = longName,
+                            text = name,
                             modifier = Modifier.weight(1f),
                         )
                         Text(

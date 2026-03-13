@@ -1,31 +1,36 @@
 package com.geeksville.mesh.util
 
+import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.createBitmap
 import io.github.thibseisel.identikon.Identicon
 import io.github.thibseisel.identikon.drawToBitmap
-import java.util.concurrent.ConcurrentHashMap
 
 object IdentIkonGen {
 
-    private val cachedBitmaps = ConcurrentHashMap<String, ImageBitmap>()
+    private val cachedBitmaps = object : LruCache<String, ImageBitmap>(2500) {}
 
+    @Synchronized
     fun generateOrGetFromHexId(
         nodeHexId: String,
-        size: Int = 100 //default 100px is enough for most cases
+        size: Int = 100
     ): ImageBitmap {
 
         val key = "$nodeHexId:$size"
 
-        return cachedBitmaps.computeIfAbsent(key) {
-            val digest = Crypto.sha256Digest(nodeHexId)
-            val icon = Identicon.fromHash(digest, size)
+        cachedBitmaps.get(key)?.let { return it }
 
-            val targetBitmap = createBitmap(size, size)
-            icon.drawToBitmap(targetBitmap)
+        val digest = Crypto.sha256Digest(nodeHexId)
+        val icon = Identicon.fromHash(digest, size)
 
-            targetBitmap.asImageBitmap()
-        }
+        val bitmap = createBitmap(size, size)
+        icon.drawToBitmap(bitmap)
+
+        val imageBitmap = bitmap.asImageBitmap()
+
+        cachedBitmaps.put(key, imageBitmap)
+
+        return imageBitmap
     }
 }

@@ -150,6 +150,32 @@ private fun NodeDetailList(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp),
     ) {
+        item {
+            PreferenceCategory("Personal Identicon") {
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .padding(4.dp)
+                        .clip(CircleShape)
+                        .background(
+                            color = Color(node.colors.second).copy(alpha = .5f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        bitmap = IdentIkonGen.generateOrGetFromHexId(
+                            node.user.id,
+                            500,
+                        ),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(100.dp)
+                            .clip(CircleShape)
+                    )
+                }
+            }
+        }
         if (metricsState.deviceHardware != null) {
             item {
                 PreferenceCategory("Device") {
@@ -239,32 +265,9 @@ private fun NodeDetailRow(
 private fun DeviceDetailsContent(
     state: MetricsState,
 ) {
-    val node = state.node ?: return
     val deviceHardware = state.deviceHardware ?: return
     val hwModelName = deviceHardware.displayName
     val isSupported = deviceHardware.activelySupported
-    Box(
-        modifier = Modifier
-            .size(100.dp)
-            .padding(4.dp)
-            .clip(CircleShape)
-            .background(
-                color = Color(node.colors.second).copy(alpha = .5f),
-                shape = CircleShape
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            bitmap = IdentIkonGen.generateOrGetFromHexId(
-                node.user.id,
-                500,
-            ),
-            contentDescription = null,
-            modifier = Modifier
-                .size(100.dp)
-                .clip(CircleShape)
-        )
-    }
 
     Spacer(Modifier.height(16.dp))
 
