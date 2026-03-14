@@ -18,7 +18,13 @@
 package com.geeksville.mesh.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,7 +32,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -38,9 +43,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Card
-import androidx.compose.material.Chip
-import androidx.compose.material.ChipDefaults
 import androidx.compose.material.Divider
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.Icon
@@ -62,17 +66,23 @@ import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
@@ -166,37 +176,20 @@ fun NodeItem(
                     Box(
                         modifier = Modifier.wrapContentSize(Alignment.TopStart),
                     ) {
-                        Chip(
-                            modifier = Modifier
-                                .width(IntrinsicSize.Min)
-                                .defaultMinSize(minHeight = 32.dp, minWidth = 32.dp),
-                            colors = ChipDefaults.chipColors(
-                                backgroundColor = Color(nodeColor),
-                                contentColor = Color(textColor),
-                            ),
+
+                        val enabled = thatNode.user.longName
+                            .lowercase()
+                            .contains("darkmesh")
+
+                        PremiumChip(
+                            text = thatNode.user.shortName.ifEmpty { "???" },
+                            nodeColor = Color(nodeColor),
+                            textColor = Color(textColor),
+                            icon = IdentIkonGen.generateOrGetFromHexId(id),
+                            enabled = enabled,
                             onClick = { menuExpanded = !menuExpanded }
-                        ) {
+                        )
 
-                            Image(
-                                bitmap = IdentIkonGen.generateOrGetFromHexId(id),
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .offset(x = (-10).dp)
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                            )
-
-                            Text(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .offset(x = (-3).dp),
-                                text = thatNode.user.shortName.ifEmpty { "???" },
-                                fontWeight = FontWeight.Normal,
-                                fontSize = MaterialTheme.typography.button.fontSize,
-                                textDecoration = TextDecoration.LineThrough.takeIf { isIgnored },
-                                textAlign = TextAlign.Center,
-                            )
-                        }
                         NodeMenu(
                             node = thatNode,
                             showFullMenu = !isThisNode && isConnected,
@@ -495,4 +488,98 @@ fun TraceIcon(
         }
     }
 }
+
+@Composable
+@Suppress("AssignedValueIsNeverRead")
+fun PremiumChip(
+    text: String,
+    nodeColor: Color,
+    textColor: Color,
+    icon: ImageBitmap,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+
+    val shape = RoundedCornerShape(50)
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    var chipWidth by remember { mutableFloatStateOf(0f) }
+
+    val offset by transition.animateFloat(
+        initialValue = -chipWidth,
+        targetValue = chipWidth,
+        animationSpec = infiniteRepeatable(
+            animation = tween(6000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "offset"
+    )
+
+    Surface(
+        shape = shape,
+        color = nodeColor,
+        modifier = Modifier.clickable { onClick() }
+    ) {
+
+        Box {
+
+            Row(
+                modifier = Modifier
+                    .defaultMinSize(minHeight = 32.dp, minWidth = 32.dp)
+                    .padding(horizontal = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+
+                Image(
+                    bitmap = icon,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .offset(x = (-2).dp)
+                        .size(28.dp)
+                        .clip(CircleShape)
+                )
+                Text(
+                    text = text,
+                    color = textColor,
+                    modifier = Modifier
+                        .padding(start = 6.dp)
+                        .offset(x = (-3).dp),
+                )
+            }
+
+            if (enabled) {
+
+                Canvas(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(shape)
+                        .onSizeChanged {
+                            chipWidth = it.width.toFloat()
+                        }
+                ) {
+
+                    drawRoundRect(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color(0xFF8B0000),
+                                Color(0xFFB71C1C),
+                                Color.Green,
+                                Color(0xFFB71C1C),
+                                Color(0xFF8B0000),
+                                Color.Transparent
+                            ),
+                            start = Offset(offset, 0f),
+                            end = Offset(offset + size.width * 1.5f, 0f)
+                        ),
+                        cornerRadius = CornerRadius(size.height / 2),
+                        style = Stroke(width = 4.dp.toPx()),
+                        alpha = 0.65f
+                    )
+                }
+            }
+        }
+    }
+}
+
+
 
