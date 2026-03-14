@@ -23,10 +23,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -55,7 +58,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -88,6 +95,7 @@ import com.geeksville.mesh.ui.message.navigateToMessages
 import com.geeksville.mesh.ui.theme.AppTheme
 import com.geeksville.mesh.util.AppUtil
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -261,9 +269,26 @@ fun RelayInfoBox(relayNode: RelayEvent, model: UIViewModel) {
         confidence += " (DIRECT)"
     }
 
+    var highlight by remember { mutableStateOf(false) }
+
+    LaunchedEffect(relayNode.timestamp) {
+        highlight = true
+        delay(700)
+        highlight = false
+    }
+
+    val borderColor by animateColorAsState(
+        targetValue = if (highlight)
+            androidx.compose.material.MaterialTheme.colors.primary
+        else
+            Color.Transparent,
+        animationSpec = tween(durationMillis = 600)
+    )
+
     androidx.compose.material.Surface(
         elevation = 4.dp,
         shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(2.dp, borderColor),
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp)

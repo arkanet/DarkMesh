@@ -18,6 +18,7 @@
 package com.geeksville.mesh.ui.components
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -34,6 +35,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -46,6 +48,8 @@ import com.geeksville.mesh.ui.activity.PlanMsgActivity.NODE_ID_EXTRA_PARAM
 @Composable
 fun NodeMenu(
     node: Node,
+    isThisNode: Boolean = false,
+    isConnected: Boolean = false,
     showFullMenu: Boolean = false,
     onDismissRequest: () -> Unit,
     expanded: Boolean = false,
@@ -88,6 +92,29 @@ fun NodeMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
     ) {
+
+        if(isThisNode){
+
+            val connStatus = if(isConnected){
+                "Connected"
+            } else {
+                "Disconnected"
+            }
+
+            DropdownMenuItem(
+                onClick = {
+                    Toast.makeText(context,
+                        "Device is $connStatus",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                },
+                content = {
+                    Text(connStatus,
+                        color = if(isConnected) Color.Green else Color.Red
+                    )
+                }
+            )
+        }
 
         if (showFullMenu) {
             DropdownMenuItem(

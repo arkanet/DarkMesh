@@ -22,6 +22,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.hardware.usb.UsbManager
 import android.net.Uri
 import android.os.Build
@@ -127,6 +128,7 @@ import com.geeksville.mesh.ui.theme.AppTheme
 import com.geeksville.mesh.util.Capabilities
 import com.geeksville.mesh.util.Exceptions
 import com.geeksville.mesh.util.LanguageUtils
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
@@ -372,19 +374,32 @@ class MainActivity : AppCompatActivity(), Logging {
     }
 
     private fun updateConnectionStatusImage(connected: MeshService.ConnectionState) {
-        if (model.actionBarMenu == null) return
+        val menu = model.actionBarMenu ?: return
 
-        val (image, tooltip) = when (connected) {
-            MeshService.ConnectionState.CONNECTED -> R.drawable.cloud_on to R.string.connected
-            MeshService.ConnectionState.DEVICE_SLEEP -> R.drawable.ic_twotone_cloud_upload_24 to R.string.device_sleeping
-            MeshService.ConnectionState.DISCONNECTED -> R.drawable.cloud_off to R.string.disconnected
+        val (image, tooltip, color) = when (connected) {
+            MeshService.ConnectionState.CONNECTED ->
+                Triple(R.drawable.cloud_on, R.string.connected, Color.GREEN)
+
+            MeshService.ConnectionState.DEVICE_SLEEP ->
+                Triple(R.drawable.ic_twotone_cloud_upload_24, R.string.device_sleeping, Color.YELLOW)
+
+            MeshService.ConnectionState.DISCONNECTED ->
+                Triple(R.drawable.cloud_off, R.string.disconnected,
+                    MaterialColors.getColor(
+                        this,
+                        R.attr.colorPrimary,
+                        Color.RED
+                    )
+                )
         }
 
-        val item = model.actionBarMenu?.findItem(R.id.connectStatusImage)
-        if (item != null) {
-            item.setIcon(image)
-            item.setTitle(tooltip)
-        }
+        val item = menu.findItem(R.id.connectStatusImage) ?: return
+
+        val drawable = ContextCompat.getDrawable(this, image)?.mutate()
+        drawable?.setTint(color)
+
+        item.icon = drawable
+        item.setTitle(tooltip)
     }
 
     override fun onNewIntent(intent: Intent) {

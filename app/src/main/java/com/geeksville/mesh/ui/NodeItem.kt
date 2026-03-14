@@ -17,6 +17,8 @@
 
 package com.geeksville.mesh.ui
 
+import android.graphics.LinearGradient
+import android.graphics.Shader
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -66,20 +68,17 @@ import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
@@ -176,22 +175,20 @@ fun NodeItem(
                     Box(
                         modifier = Modifier.wrapContentSize(Alignment.TopStart),
                     ) {
-
-                        val enabled = thatNode.user.longName
-                            .lowercase()
-                            .contains("darkmesh")
-
                         PremiumChip(
                             text = thatNode.user.shortName.ifEmpty { "???" },
                             nodeColor = Color(nodeColor),
                             textColor = Color(textColor),
                             icon = IdentIkonGen.generateOrGetFromHexId(id),
-                            enabled = enabled,
+                            enabled = isThisNode,
+                            isConnected = isConnected,
                             onClick = { menuExpanded = !menuExpanded }
                         )
 
                         NodeMenu(
                             node = thatNode,
+                            isThisNode = isThisNode,
+                            isConnected = isConnected,
                             showFullMenu = !isThisNode && isConnected,
                             onAction = onAction,
                             expanded = menuExpanded,
@@ -490,37 +487,151 @@ fun TraceIcon(
 }
 
 @Composable
-@Suppress("AssignedValueIsNeverRead")
 fun PremiumChip(
     text: String,
     nodeColor: Color,
     textColor: Color,
     icon: ImageBitmap,
     enabled: Boolean,
+    isConnected: Boolean,
     onClick: () -> Unit
 ) {
 
     val shape = RoundedCornerShape(50)
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    var chipWidth by remember { mutableFloatStateOf(0f) }
 
-    val offset by transition.animateFloat(
-        initialValue = -chipWidth,
-        targetValue = chipWidth,
-        animationSpec = infiniteRepeatable(
-            animation = tween(6000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "offset"
-    )
+    Box {
 
-    Surface(
-        shape = shape,
-        color = nodeColor,
-        modifier = Modifier.clickable { onClick() }
-    ) {
+        if (enabled) {
 
-        Box {
+            val transition = rememberInfiniteTransition(label = "shimmer")
+
+            val offsetA by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 2000f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(12000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "flowA"
+            )
+
+            val offsetB by transition.animateFloat(
+                initialValue = 2000f,
+                targetValue = -2000f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(18000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "flowB"
+            )
+
+            val baseColors = if (isConnected) {
+                listOf(
+                    Color(0xFF064E3B),
+                    Color(0xFF047857),
+                    Color(0xFF10B981),
+                    Color(0xFF34D399),
+                    Color(0xFFBBF7D0),
+                    Color(0xFF34D399),
+                    Color(0xFF10B981),
+                    Color(0xFF047857),
+                    Color(0xFF064E3B)
+                )
+            } else {
+                listOf(
+                    Color(0xFF450A0A),
+                    Color(0xFF7F1D1D),
+                    Color(0xFFB91C1C),
+                    Color(0xFFEF4444),
+                    Color(0xFFFCA5A5),
+                    Color(0xFFEF4444),
+                    Color(0xFFB91C1C),
+                    Color(0xFF7F1D1D),
+                    Color(0xFF450A0A)
+                )
+            }
+
+
+            Canvas(
+                modifier = Modifier
+                    .matchParentSize()
+            ) {
+
+                val colors = baseColors.map { it.toArgb() }.toIntArray()
+                val inset = 3.dp.toPx()
+
+                drawIntoCanvas { canvas ->
+
+                    val shaderA = LinearGradient(
+                        offsetA,
+                        0f,
+                        offsetA + size.width * 3f,
+                        size.height,
+                        colors,
+                        null,
+                        Shader.TileMode.MIRROR
+                    )
+
+                    val shaderB = LinearGradient(
+                        offsetB,
+                        size.height,
+                        offsetB + size.width * 2f,
+                        0f,
+                        colors,
+                        null,
+                        Shader.TileMode.MIRROR
+                    )
+
+                    val paintA = android.graphics.Paint().apply {
+                        isAntiAlias = true
+                        style = android.graphics.Paint.Style.STROKE
+                        strokeWidth = 6.dp.toPx()
+                        maskFilter = android.graphics.BlurMaskFilter(
+                            26f,
+                            android.graphics.BlurMaskFilter.Blur.NORMAL
+                        )
+                        shader = shaderA
+                    }
+
+                    val paintB = android.graphics.Paint().apply {
+                        isAntiAlias = true
+                        style = android.graphics.Paint.Style.STROKE
+                        strokeWidth = 6.dp.toPx()
+                        maskFilter = android.graphics.BlurMaskFilter(
+                            18f,
+                            android.graphics.BlurMaskFilter.Blur.NORMAL
+                        )
+                        shader = shaderB
+                    }
+
+                    canvas.nativeCanvas.drawRoundRect(
+                        inset,
+                        inset,
+                        size.width - inset,
+                        size.height - inset,
+                        size.height / 2,
+                        size.height / 2,
+                        paintA
+                    )
+
+                    canvas.nativeCanvas.drawRoundRect(
+                        inset,
+                        inset,
+                        size.width - inset,
+                        size.height - inset,
+                        size.height / 2,
+                        size.height / 2,
+                        paintB
+                    )
+                }
+            }
+        }
+
+        Surface(
+            shape = shape,
+            color = nodeColor,
+            modifier = Modifier.clickable { onClick() }
+        ) {
 
             Row(
                 modifier = Modifier
@@ -542,44 +653,10 @@ fun PremiumChip(
                     color = textColor,
                     modifier = Modifier
                         .padding(start = 6.dp)
-                        .offset(x = (-3).dp),
+                        .offset(x = (-3).dp)
                 )
-            }
-
-            if (enabled) {
-
-                Canvas(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .clip(shape)
-                        .onSizeChanged {
-                            chipWidth = it.width.toFloat()
-                        }
-                ) {
-
-                    drawRoundRect(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color(0xFF8B0000),
-                                Color(0xFFB71C1C),
-                                Color.Green,
-                                Color(0xFFB71C1C),
-                                Color(0xFF8B0000),
-                                Color.Transparent
-                            ),
-                            start = Offset(offset, 0f),
-                            end = Offset(offset + size.width * 1.5f, 0f)
-                        ),
-                        cornerRadius = CornerRadius(size.height / 2),
-                        style = Stroke(width = 4.dp.toPx()),
-                        alpha = 0.65f
-                    )
-                }
             }
         }
     }
 }
-
-
 

@@ -59,7 +59,6 @@
         android:id="@+id/connectStatusImage"
         android:contentDescription="@string/connection_status"
         android:icon="@drawable/cloud_off"
-        app:iconTint="@color/toolbarText"
         android:title="@string/disconnected"
         app:showAsAction="always"
         />
