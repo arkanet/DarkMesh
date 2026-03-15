@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -38,7 +39,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
+import com.geeksville.mesh.android.advancedPrefs
 import com.geeksville.mesh.model.Node
+import com.geeksville.mesh.ui.REMOVE_CUSTOM_ICON_CHAT
 import com.geeksville.mesh.ui.preview.NodePreviewParameterProvider
 import com.geeksville.mesh.ui.theme.AppTheme
 import com.geeksville.mesh.util.IdentIkonGen
@@ -49,6 +52,9 @@ fun UserAvatar(
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val removeCustomIconChatPrefs = context.advancedPrefs.getBoolean(REMOVE_CUSTOM_ICON_CHAT, false)
+
     val nodeId = node.user.id
     val textMeasurer = rememberTextMeasurer()
     val textStyle = MaterialTheme.typography.button.copy(
@@ -58,7 +64,7 @@ fun UserAvatar(
         textMeasurer.measure(text = "MMMM", style = textStyle)
     }
 
-    if(nodeId != null){
+    if(!removeCustomIconChatPrefs && nodeId != null){
         Image(
             bitmap = IdentIkonGen.generateOrGetFromHexId(nodeId),
             contentDescription = null,

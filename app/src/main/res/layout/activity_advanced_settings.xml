@@ -233,5 +233,40 @@
             app:layout_constraintTop_toBottomOf="@+id/deleteOldNodesSwitch"
             tools:ignore="HardcodedText,UseSwitchCompatOrMaterialXml" />
 
+
+        <TextView
+            android:id="@+id/removeIdenticonInChat"
+            android:layout_width="220dp"
+            android:layout_height="22dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="20dp"
+            android:text="DISABLE CUSTOM ICONS"
+            android:textColor="@color/colorAnnotation"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/preserveFavouritesSwitch"
+            tools:ignore="HardcodedText" />
+
+        <TextView
+            android:id="@+id/removeIdenticonInChatDesc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Disables custom icon visualization in chat view."
+            android:textSize="13sp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/removeIdenticonInChat"
+            tools:ignore="HardcodedText" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/removeIdenticonInChatSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Disable Custom Icons  "
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/removeIdenticonInChatDesc"
+            tools:ignore="HardcodedText,UseSwitchCompatOrMaterialXml" />
+
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 </ScrollView>

@@ -26,6 +26,7 @@ const val OVERRIDE_TELEMETRY_ALL_VERSIONS = "override_telemetry_all_versions"
 const val AUTO_DELETE_OLD_NODES = "auto_delete_old_nodes"
 const val AUTO_DELETE_TIME_HOURS = "auto_delete_time_hours"
 const val AUTO_DELETE_PRESERVE_FAVOURITES = "auto_delete_preserve_favourites"
+const val REMOVE_CUSTOM_ICON_CHAT = "remove_custom_icon_chat"
 
 object AutoDeleteConfig {
 
@@ -66,6 +67,9 @@ class AdvancedSettings : AppCompatActivity() {
         val autoDeletePreserveFav =
             findViewById<SwitchCompat>(R.id.preserveFavouritesSwitch)
 
+        val removeCustomIconChatSwitch =
+            findViewById<SwitchCompat>(R.id.removeIdenticonInChatSwitch)
+
         val autoDeleteTimeSpinner = findViewById<Spinner>(R.id.autoDeleteTiming)
 
         val autoDeleteNodesHoursAdapter = ArrayAdapter(
@@ -81,6 +85,7 @@ class AdvancedSettings : AppCompatActivity() {
         val skipMqttPref = advancedPrefs.getBoolean(SKIP_MQTT_ENTIRELY, false)
         val autoDeleteNodesPref = advancedPrefs.getBoolean(AUTO_DELETE_OLD_NODES, false)
         val autoDeletePreserveFavPref = advancedPrefs.getBoolean(AUTO_DELETE_PRESERVE_FAVOURITES, false)
+        val removeCustomIconChatPrefs = advancedPrefs.getBoolean(REMOVE_CUSTOM_ICON_CHAT, false)
 
         val autoDeleteTimeHours = advancedPrefs.getInt(
             AUTO_DELETE_TIME_HOURS,
@@ -98,6 +103,7 @@ class AdvancedSettings : AppCompatActivity() {
         skipMqttSwitch.isChecked = skipMqttPref
         autoDeleteNodesSwitch.isChecked = autoDeleteNodesPref
         autoDeletePreserveFav.isChecked = autoDeletePreserveFavPref
+        removeCustomIconChatSwitch.isChecked = removeCustomIconChatPrefs
 
         val autoDeleteSpinnerIndex = hoursValues
             .indexOf(autoDeleteTimeHours)
@@ -111,6 +117,7 @@ class AdvancedSettings : AppCompatActivity() {
         setSwitchListener(overrideTelemetrySwitch, OVERRIDE_TELEMETRY_ALL_VERSIONS)
         setSwitchListener(autoDeleteNodesSwitch, AUTO_DELETE_OLD_NODES)
         setSwitchListener(autoDeletePreserveFav, AUTO_DELETE_PRESERVE_FAVOURITES)
+        setSwitchListener(removeCustomIconChatSwitch, REMOVE_CUSTOM_ICON_CHAT)
 
         autoDeleteTimeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(

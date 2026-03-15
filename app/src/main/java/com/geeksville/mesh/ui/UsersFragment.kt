@@ -273,16 +273,16 @@ fun RelayInfoBox(relayNode: RelayEvent, model: UIViewModel) {
 
     LaunchedEffect(relayNode.timestamp) {
         highlight = true
-        delay(700)
+        delay(1000)
         highlight = false
     }
 
     val borderColor by animateColorAsState(
         targetValue = if (highlight)
-            androidx.compose.material.MaterialTheme.colors.primary
+            Color.Green
         else
             Color.Transparent,
-        animationSpec = tween(durationMillis = 600)
+        animationSpec = tween(durationMillis = 900)
     )
 
     androidx.compose.material.Surface(

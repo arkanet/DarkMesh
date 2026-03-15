@@ -501,7 +501,7 @@ fun PremiumChip(
 
     Box {
 
-        if (enabled) {
+        if (enabled && !isConnected) {
 
             val transition = rememberInfiniteTransition(label = "shimmer")
 
@@ -525,32 +525,17 @@ fun PremiumChip(
                 label = "flowB"
             )
 
-            val baseColors = if (isConnected) {
-                listOf(
-                    Color(0xFF064E3B),
-                    Color(0xFF047857),
-                    Color(0xFF10B981),
-                    Color(0xFF34D399),
-                    Color(0xFFBBF7D0),
-                    Color(0xFF34D399),
-                    Color(0xFF10B981),
-                    Color(0xFF047857),
-                    Color(0xFF064E3B)
-                )
-            } else {
-                listOf(
-                    Color(0xFF450A0A),
-                    Color(0xFF7F1D1D),
-                    Color(0xFFB91C1C),
-                    Color(0xFFEF4444),
-                    Color(0xFFFCA5A5),
-                    Color(0xFFEF4444),
-                    Color(0xFFB91C1C),
-                    Color(0xFF7F1D1D),
-                    Color(0xFF450A0A)
-                )
-            }
-
+            val baseColors = listOf(
+                Color(0xFF450A0A),
+                Color(0xFF7F1D1D),
+                Color(0xFFB91C1C),
+                Color(0xFFEF4444),
+                Color(0xFFFCA5A5),
+                Color(0xFFEF4444),
+                Color(0xFFB91C1C),
+                Color(0xFF7F1D1D),
+                Color(0xFF450A0A)
+            )
 
             Canvas(
                 modifier = Modifier

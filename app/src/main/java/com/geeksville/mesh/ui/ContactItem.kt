@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Card
+import androidx.compose.material.Chip
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
@@ -45,14 +46,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import com.emp3r0r7.darkmesh.R
 import com.geeksville.mesh.DataPacket.CREATOR.ID_BROADCAST
+import com.geeksville.mesh.android.advancedPrefs
 import com.geeksville.mesh.model.Contact
 import com.geeksville.mesh.ui.theme.AppTheme
 import com.geeksville.mesh.util.IdentIkonGen
@@ -69,6 +74,9 @@ fun ContactItem(
 ) = with(contact) {
 
     val isChannel = contactKey.contains(ID_BROADCAST)
+
+    val context = LocalContext.current
+    val removeCustomIconChatPrefs = context.advancedPrefs.getBoolean(REMOVE_CUSTOM_ICON_CHAT, false)
 
     // zero is default like medium fast, short turbo.. etc
     val isDefaultChannnel = isChannel && "0" == contact.shortName
@@ -109,16 +117,34 @@ fun ContactItem(
                         }
                     )
                 } else {
-                    Image(
-                        bitmap = IdentIkonGen.generateOrGetFromHexId(
-                            nodeId ?: "???",
-                        ),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(55.dp)
-                            .clip(CircleShape)
-                    )
-                    Spacer(Modifier.width(10.dp))
+
+                    if(removeCustomIconChatPrefs){
+                        Chip(
+                            onClick = { },
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .width(72.dp),
+                        ) {
+                            Text(
+                                text = shortName,
+                                modifier = Modifier.fillMaxWidth(),
+                                fontSize = MaterialTheme.typography.button.fontSize,
+                                fontWeight = FontWeight.Normal,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    } else {
+                        Image(
+                            bitmap = IdentIkonGen.generateOrGetFromHexId(
+                                nodeId ?: "???",
+                            ),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(55.dp)
+                                .clip(CircleShape)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                    }
                 }
                 Column(
                     modifier = Modifier.weight(1f),

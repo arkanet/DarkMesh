@@ -128,7 +128,6 @@ import com.geeksville.mesh.ui.theme.AppTheme
 import com.geeksville.mesh.util.Capabilities
 import com.geeksville.mesh.util.Exceptions
 import com.geeksville.mesh.util.LanguageUtils
-import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
@@ -381,16 +380,10 @@ class MainActivity : AppCompatActivity(), Logging {
                 Triple(R.drawable.cloud_on, R.string.connected, Color.GREEN)
 
             MeshService.ConnectionState.DEVICE_SLEEP ->
-                Triple(R.drawable.ic_twotone_cloud_upload_24, R.string.device_sleeping, Color.YELLOW)
+                Triple(R.drawable.ic_twotone_cloud_upload_24, R.string.device_sleeping, Color.CYAN)
 
             MeshService.ConnectionState.DISCONNECTED ->
-                Triple(R.drawable.cloud_off, R.string.disconnected,
-                    MaterialColors.getColor(
-                        this,
-                        R.attr.colorPrimary,
-                        Color.RED
-                    )
-                )
+                Triple(R.drawable.cloud_off, R.string.disconnected, Color.WHITE)
         }
 
         val item = menu.findItem(R.id.connectStatusImage) ?: return
