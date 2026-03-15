@@ -212,8 +212,18 @@ fun AutoLinkText(
 
                         node.validPosition?.let {
                             Spacer(modifier = Modifier.height(7.dp))
+                            var degLat = degD(it.latitudeI).toString()
+                            var degLon = degD(it.longitudeI).toString()
 
-                            Text("Position: ${degD(it.latitudeI)}, ${degD(it.longitudeI)}")
+                            if(degLat.length >= 8){
+                                degLat = degLat.take(8)
+                            }
+
+                            if(degLon.length >= 8){
+                                degLon = degLon.take(8)
+                            }
+
+                            Text("Position: $degLat, $degLon")
                         }
 
                         Spacer(modifier = Modifier.height(7.dp))
