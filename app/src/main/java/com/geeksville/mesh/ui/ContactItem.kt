@@ -146,10 +146,10 @@ fun ContactItem(
                             ),
                             contentDescription = null,
                             modifier = Modifier
-                                .size(55.dp)
+                                .size(45.dp)
                                 .clip(CircleShape)
                         )
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(13.dp))
                     }
                 }
                 Column(
@@ -219,7 +219,7 @@ private fun ContactItemPreview() {
     AppTheme {
         ContactItem(
             contact = Contact(
-                contactKey = "^all",
+                contactKey = "!asd1235",
                 shortName = stringResource(R.string.some_username),
                 longName = stringResource(R.string.unknown_username),
                 lastMessageTime = "3 minutes ago",

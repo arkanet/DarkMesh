@@ -847,7 +847,7 @@ class MeshService : Service(), Logging {
         }
     }
 
-    private fun detectRelayNode(packet: MeshPacket, fromUs: Boolean, traceResponse:String?) {
+    private fun detectRelayNode(packet: MeshPacket, traceResponse:String?) {
 
         //We prioritize relaynode from direct packets and traceroutes and if not found, we fallback relayNode field
         if(traceResponse != null){
@@ -871,7 +871,7 @@ class MeshService : Service(), Logging {
             }
         }
 
-        if (!fromUs && packet.hopStart - packet.hopLimit == 0) {
+        if (packet.hopStart - packet.hopLimit == 0) {
 
             radioConfigRepository.emitRelayEvent(
                 RelayEvent(
@@ -1061,7 +1061,9 @@ class MeshService : Service(), Logging {
                     else -> debug("No custom processing needed for ${data.portnumValue}")
                 }
 
-                detectRelayNode(packet, fromUs, traceRouteResponse)
+                if(!fromUs){
+                    detectRelayNode(packet,traceRouteResponse)
+                }
 
                 // We always tell other apps when new data packets arrive
                 if (shouldBroadcast) {
