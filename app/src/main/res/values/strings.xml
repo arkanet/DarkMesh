@@ -254,6 +254,7 @@
     <string name="waypoint_received">Received waypoint: %s</string>
     <string name="error_duty_cycle">Duty Cycle limit reached. Cannot send messages right now, please try again later.</string>
     <string name="remove">Remove</string>
+    <string name="fw_mismatch" translatable="false">Firmware Mismatch</string>
     <string name="remove_node_text">This node will be removed from your list until your node receives data from it again.</string>
     <string name="mute">Mute</string>
     <string name="mute_notifications">Mute notifications</string>

@@ -70,4 +70,9 @@ data class Capabilities(val firmwareVersion: String?, internal val forceEnableAl
     /** Support for ESP32 Unified OTA. Supported since firmware v2.7.18. */
     val supportsEsp32Ota: Boolean
         get() = isSupported("2.7.18")
+
+    /** Support for Traffic Management module. Supported since firmware v2.7.20. */
+    val supportsTrafficManagementConfig : Boolean
+        get() = isSupported("2.7.20")
+
 }

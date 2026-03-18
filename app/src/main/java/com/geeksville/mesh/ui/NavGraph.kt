@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PermScanWifi
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Power
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Sensors
@@ -106,6 +107,7 @@ import com.geeksville.mesh.ui.components.config.SecurityConfigScreen
 import com.geeksville.mesh.ui.components.config.SerialConfigScreen
 import com.geeksville.mesh.ui.components.config.StoreForwardConfigScreen
 import com.geeksville.mesh.ui.components.config.TelemetryConfigScreen
+import com.geeksville.mesh.ui.components.config.TrafficManagementConfigScreen
 import com.geeksville.mesh.ui.components.config.UserConfigScreen
 import com.geeksville.mesh.util.UiText
 import com.google.accompanist.themeadapter.appcompat.AppCompatTheme
@@ -251,6 +253,9 @@ sealed interface Route {
     data object NeighborInfo : Route
 
     @Serializable
+    data object TrafficManagement : Route
+
+    @Serializable
     data object AmbientLighting : Route
 
     @Serializable
@@ -332,64 +337,90 @@ enum class ConfigRoute(
 enum class ModuleRoute(
     val title: String, val route: Route, val icon: ImageVector?, val type: Int = 0
 ) {
-    MQTT("MQTT", Route.MQTT, Icons.Default.Cloud, 0), SERIAL(
+    //refer to admin.pb.h firmware header file
+
+    MQTT("MQTT", Route.MQTT, Icons.Default.Cloud, 0),
+
+    SERIAL(
         "Serial",
         Route.Serial,
         Icons.Default.Usb,
         1
     ),
+
     EXT_NOTIFICATION(
         "External Notification", Route.ExtNotification, Icons.Default.Notifications, 2
     ),
+
     STORE_FORWARD(
         "Store & Forward",
         Route.StoreForward,
         Icons.AutoMirrored.Default.Forward,
         3
     ),
+
     RANGE_TEST("Range Test", Route.RangeTest, Icons.Default.Speed, 4), TELEMETRY(
         "Telemetry",
         Route.Telemetry,
         Icons.Default.DataUsage,
         5
     ),
+
     CANNED_MESSAGE(
         "Canned Message",
         Route.CannedMessage,
         Icons.AutoMirrored.Default.Message,
         6
     ),
+
     AUDIO(
         "Audio",
         Route.Audio,
         Icons.AutoMirrored.Default.VolumeUp,
         7
     ),
+
     REMOTE_HARDWARE(
         "Remote Hardware",
         Route.RemoteHardware,
         Icons.Default.SettingsRemote,
         8
     ),
+
     NEIGHBOR_INFO(
         "Neighbor Info",
         Route.NeighborInfo,
         Icons.Default.People,
         9
     ),
+
     AMBIENT_LIGHTING(
         "Ambient Lighting",
         Route.AmbientLighting,
         Icons.Default.LightMode,
         10
     ),
+
     DETECTION_SENSOR(
         "Detection Sensor",
         Route.DetectionSensor,
         Icons.Default.Sensors,
         11
     ),
-    PAXCOUNTER("Paxcounter", Route.Paxcounter, Icons.Default.PermScanWifi, 12), ;
+
+    PAXCOUNTER(
+        "Paxcounter",
+        Route.Paxcounter,
+        Icons.Default.PermScanWifi,
+        12
+    ),
+
+    TRAFFIC_MANAGEMENT(
+        "Traffic Management",
+        Route.TrafficManagement,
+        Icons.Default.Route,
+        14 //this number is important, it is read firmware-wise
+    ), ;
 
     val bitfield: Int get() = 1 shl ordinal
 
@@ -578,6 +609,10 @@ fun NavGraph(
         composable<Route.Paxcounter> {
             val parentEntry = remember { navController.getBackStackEntry<Route.RadioConfig>() }
             PaxcounterConfigScreen(hiltViewModel<RadioConfigViewModel>(parentEntry))
+        }
+        composable<Route.TrafficManagement> {
+            val parentEntry = remember { navController.getBackStackEntry<Route.RadioConfig>() }
+            TrafficManagementConfigScreen(hiltViewModel<RadioConfigViewModel>(parentEntry))
         }
     }
 }
