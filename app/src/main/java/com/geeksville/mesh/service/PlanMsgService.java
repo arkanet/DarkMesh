@@ -327,10 +327,11 @@ public class PlanMsgService extends Service {
                 .setOngoing(true)
                 .build();
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);
-        else
-            Toast.makeText(this, "Unable to launch PlanMsgService, version unsupported!", Toast.LENGTH_LONG).show();
+        } else {
+            startForeground(NOTIFICATION_ID, notification);
+        }
 
         return START_STICKY;
     }

@@ -1251,43 +1251,38 @@ class MainActivity : AppCompatActivity(), Logging {
                         putExtra("includeTime", sendTime.isChecked)
                     }
 
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-
-                        getPreferences(this).edit {
-                            putBoolean(PREF_STRESSTEST_ENABLED, true).commit()
-                        }
-
-                        val livePos = startLivePosition.isChecked
-                        val posInChat = sendPositionInChat.isChecked
-
-                        DistressService.setLivePosition(livePos)
-                        DistressService.setSendPositionToChat(posInChat)
-
-                        if (livePos || posInChat){
-
-                            if(!checkLocationEnabled()){
-                                getPreferences(this).edit {
-                                    putBoolean(PREF_STRESSTEST_ENABLED, false).commit()
-                                }
-                                return@setPositiveButton
-                            }
-
-                            model.meshService?.startProvideLocation()
-                        }
-
-                        Toast.makeText(this, "Starting Distress Beacon now..",
-                            Toast.LENGTH_LONG).show()
-
-                        startForegroundService(distressBeaconServiceIntent)
-
-                        started = true
-
-                    } else {
-                        Toast.makeText(
-                            this, "Cannot start, Android ver. unsupported!",
-                            Toast.LENGTH_LONG
-                        ).show()
+                    getPreferences(this).edit {
+                        putBoolean(PREF_STRESSTEST_ENABLED, true).commit()
                     }
+
+                    val livePos = startLivePosition.isChecked
+                    val posInChat = sendPositionInChat.isChecked
+
+                    DistressService.setLivePosition(livePos)
+                    DistressService.setSendPositionToChat(posInChat)
+
+                    if (livePos || posInChat){
+
+                        if(!checkLocationEnabled()){
+                            getPreferences(this).edit {
+                                putBoolean(PREF_STRESSTEST_ENABLED, false).commit()
+                            }
+                            return@setPositiveButton
+                        }
+
+                        model.meshService?.startProvideLocation()
+                    }
+
+                    Toast.makeText(this, "Starting Distress Beacon now..",
+                        Toast.LENGTH_LONG).show()
+
+                    if (Build.VERSION.SDK_INT > Build.VERSION_CODES.O) {
+                        startForegroundService(distressBeaconServiceIntent)
+                    } else {
+                        startService(distressBeaconServiceIntent)
+                    }
+
+                    started = true
 
                 } else {
                     Toast.makeText(this, "Please select a channel", Toast.LENGTH_LONG).show()

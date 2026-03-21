@@ -13,7 +13,6 @@ import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
-import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
@@ -80,10 +79,11 @@ public class HuntScheduleService extends Service {
                 .setOngoing(true)
                 .build();
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);
-        else
-            Toast.makeText(this, "Unable to launch Hunt Foreground Service, version unsupported!", Toast.LENGTH_LONG).show();
+        } else {
+            startForeground(NOTIFICATION_ID, notification);
+        }
 
         return START_STICKY;
     }
