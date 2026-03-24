@@ -71,6 +71,10 @@ interface NodeInfoDao {
             OR CAST(num AS TEXT) LIKE '%' || :filter || '%'
             OR LOWER(printf('!%08x', num)) LIKE '%' || LOWER(:filter) || '%'
             OR LOWER(printf('%08x', num)) LIKE '%' || LOWER(REPLACE(:filter, '!', '')) || '%'))
+        AND (
+             :sort != 'online' 
+             OR last_heard >= strftime('%s','now') - 7200
+        )
     ORDER BY CASE
         WHEN num = (SELECT myNodeNum FROM my_node LIMIT 1) THEN 0
         ELSE 1
