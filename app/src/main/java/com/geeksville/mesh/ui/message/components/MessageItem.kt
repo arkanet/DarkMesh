@@ -17,6 +17,7 @@
 
 package com.geeksville.mesh.ui.message.components
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.twotone.Cloud
 import androidx.compose.material.icons.twotone.CloudDone
 import androidx.compose.material.icons.twotone.CloudOff
 import androidx.compose.material.icons.twotone.CloudUpload
+import androidx.compose.material.icons.twotone.FolderZip
 import androidx.compose.material.icons.twotone.HowToReg
 import androidx.compose.material.icons.twotone.Warning
 import androidx.compose.runtime.Composable
@@ -51,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -77,6 +80,7 @@ import com.geeksville.mesh.ui.theme.AppTheme
 internal fun MessageItem(
     node: Node,
     hopsAway: Int,
+    compressed: Boolean,
     messageText: String?,
     messageTime: String,
     messageStatus: MessageStatus?,
@@ -105,6 +109,7 @@ internal fun MessageItem(
         Modifier.padding(start = 8.dp, top = 8.dp, end = 0.dp, bottom = 6.dp)
     }
 
+    val ctx = LocalContext.current
     val uiModel: UIViewModel = hiltViewModel()
     val ourNode by uiModel.ourNodeInfo.collectAsStateWithLifecycle()
 
@@ -210,6 +215,20 @@ internal fun MessageItem(
                             fontSize = MaterialTheme.typography.caption.fontSize,
                         )
 
+                        if(compressed){
+                            AnimatedVisibility(visible = fromLocal) {
+                                Icon(
+                                    imageVector = Icons.TwoTone.FolderZip,
+                                    contentDescription = "Message has been compressed",
+                                    modifier = Modifier
+                                        .padding(start = 8.dp)
+                                        .clickable {
+                                            Toast.makeText(ctx, "This message has been compressed!", Toast.LENGTH_SHORT).show()
+                                        },
+                                )
+                            }
+                        }
+
                         AnimatedVisibility(visible = fromLocal) {
                             Icon(
                                 imageVector = when (messageStatus) {
@@ -280,7 +299,8 @@ private fun MessageItemPreview() {
             messageTime = "10:00",
             messageStatus = MessageStatus.DELIVERED,
             selected = false,
-            hopsAway = 1
+            hopsAway = 1,
+            compressed = true
         )
     }
 }

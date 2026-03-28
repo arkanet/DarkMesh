@@ -19,15 +19,15 @@ package com.geeksville.mesh.database.dao
 
 import androidx.room.Dao
 import androidx.room.MapColumn
-import androidx.room.Update
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import androidx.room.Upsert
 import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.MessageStatus
 import com.geeksville.mesh.database.entity.ContactSettings
-import com.geeksville.mesh.database.entity.PacketEntity
 import com.geeksville.mesh.database.entity.Packet
+import com.geeksville.mesh.database.entity.PacketEntity
 import com.geeksville.mesh.database.entity.ReactionEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -48,7 +48,7 @@ interface PacketDao {
         """
     SELECT * FROM packet
     WHERE (myNodeNum = 0 OR myNodeNum = (SELECT myNodeNum FROM my_node))
-        AND port_num = 1
+        AND port_num IN(1,7)
     ORDER BY received_time DESC
     """
     )
@@ -58,7 +58,7 @@ interface PacketDao {
         """
     SELECT COUNT(*) FROM packet
     WHERE (myNodeNum = 0 OR myNodeNum = (SELECT myNodeNum FROM my_node))
-        AND port_num = 1 AND contact_key = :contact
+        AND port_num IN(1,7) AND contact_key = :contact
     """
     )
     suspend fun getMessageCount(contact: String): Int
@@ -67,7 +67,7 @@ interface PacketDao {
         """
     SELECT COUNT(*) FROM packet
     WHERE (myNodeNum = 0 OR myNodeNum = (SELECT myNodeNum FROM my_node))
-        AND port_num = 1 AND contact_key = :contact AND read = 0
+        AND port_num IN(1,7) AND contact_key = :contact AND read = 0
     """
     )
     suspend fun getUnreadCount(contact: String): Int
@@ -77,7 +77,7 @@ interface PacketDao {
     UPDATE packet
     SET read = 1
     WHERE (myNodeNum = 0 OR myNodeNum = (SELECT myNodeNum FROM my_node))
-        AND port_num = 1 AND contact_key = :contact AND read = 0 AND received_time <= :timestamp
+        AND port_num IN(1,7) AND contact_key = :contact AND read = 0 AND received_time <= :timestamp
     """
     )
     suspend fun clearUnreadCount(contact: String, timestamp: Long)
@@ -89,7 +89,7 @@ interface PacketDao {
         """
     SELECT * FROM packet
     WHERE (myNodeNum = 0 OR myNodeNum = (SELECT myNodeNum FROM my_node))
-        AND port_num = 1 AND contact_key = :contact
+        AND port_num IN(1,7) AND contact_key = :contact
     ORDER BY received_time DESC
     """
     )

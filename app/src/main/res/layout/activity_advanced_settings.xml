@@ -267,6 +267,39 @@
             app:layout_constraintTop_toBottomOf="@+id/removeIdenticonInChatDesc"
             tools:ignore="HardcodedText,UseSwitchCompatOrMaterialXml" />
 
+        <TextView
+            android:id="@+id/useCompressionInMessages"
+            android:layout_width="220dp"
+            android:layout_height="22dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="20dp"
+            android:text="USE MESSAGE COMPRESSION"
+            android:textColor="@color/colorAnnotation"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/removeIdenticonInChatSwitch"
+            tools:ignore="HardcodedText" />
+
+        <TextView
+            android:id="@+id/useCompressionDesc"
+            android:layout_marginStart="8dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Uses a special compression algorithm for short text messages."
+            android:textSize="13sp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/useCompressionInMessages"
+            tools:ignore="HardcodedText" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/useCompressionSwitch"
+            android:layout_marginStart="8dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="USE COMPRESSION  "
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/useCompressionDesc"
+            tools:ignore="HardcodedText,UseSwitchCompatOrMaterialXml" />
+
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </ScrollView>

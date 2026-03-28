@@ -806,6 +806,7 @@ class MeshService : Service(), Logging {
 
     private val rememberDataType = setOf(
         Portnums.PortNum.TEXT_MESSAGE_APP_VALUE,
+        Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE,
         Portnums.PortNum.WAYPOINT_APP_VALUE,
     )
 
@@ -930,7 +931,8 @@ class MeshService : Service(), Logging {
 
                 when (data.portnumValue) {
 
-                    Portnums.PortNum.TEXT_MESSAGE_APP_VALUE -> {
+                    Portnums.PortNum.TEXT_MESSAGE_APP_VALUE,
+                    Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE -> {
                         if (data.emoji != 0) {
                             debug("Received EMOJI from $fromId")
                             rememberReaction(packet)

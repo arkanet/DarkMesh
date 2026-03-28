@@ -36,6 +36,7 @@ import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.IMeshService
 import com.geeksville.mesh.Position
 import com.geeksville.mesh.android.Logging
+import com.geeksville.mesh.android.advancedPrefs
 import com.geeksville.mesh.database.DbImportState
 import com.geeksville.mesh.database.DbImportState.ARGS_TAG
 import com.geeksville.mesh.database.DbImportState.ARG_FAVORITE_ONLY
@@ -55,6 +56,7 @@ import com.geeksville.mesh.repository.radio.RadioInterfaceService
 import com.geeksville.mesh.service.MeshService
 import com.geeksville.mesh.service.ServiceAction
 import com.geeksville.mesh.service.ServiceRepository
+import com.geeksville.mesh.ui.USE_COMPRESSION_MESSAGES
 import com.geeksville.mesh.ui.map.MAP_STYLE_ID
 import com.geeksville.mesh.ui.share.getSharedContactUrl
 import com.geeksville.mesh.ui.share.toSharedContact
@@ -566,7 +568,20 @@ class UIViewModel @Inject constructor(
         val channel = contactKey[0].digitToIntOrNull()
         val dest = if (channel != null) contactKey.substring(1) else contactKey
 
-        val p = DataPacket(dest, channel ?: 0, str, replyId)
+        val portnum = if (app.advancedPrefs.getBoolean(USE_COMPRESSION_MESSAGES, false)) {
+            Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE
+        } else {
+            Portnums.PortNum.TEXT_MESSAGE_APP_VALUE
+        }
+
+        val p = DataPacket(
+            to = dest,
+            channel = channel ?: 0,
+            text = str,
+            replyId = replyId,
+            dataType = portnum
+        )
+
         sendDataPacket(p)
     }
 

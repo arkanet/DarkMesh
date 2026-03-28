@@ -29,6 +29,7 @@ import com.geeksville.mesh.model.Node
 import com.geeksville.mesh.util.getShortDateTime
 import org.meshtastic.proto.ConfigProtos
 import org.meshtastic.proto.MeshProtos.User
+import org.meshtastic.proto.Portnums
 
 data class PacketEntity(
     @Embedded val packet: Packet,
@@ -48,7 +49,8 @@ data class PacketEntity(
             packetId = packetId,
             emojis = reactions.toReaction(getNode),
             replyId = data.replyId,
-            hopsAway = data.hopStart - data.hopLimit
+            hopsAway = data.hopStart - data.hopLimit,
+            compressed = data.dataType == Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE
         )
     }
 }

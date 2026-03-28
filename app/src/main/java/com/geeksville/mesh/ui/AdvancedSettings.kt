@@ -27,6 +27,7 @@ const val AUTO_DELETE_OLD_NODES = "auto_delete_old_nodes"
 const val AUTO_DELETE_TIME_HOURS = "auto_delete_time_hours"
 const val AUTO_DELETE_PRESERVE_FAVOURITES = "auto_delete_preserve_favourites"
 const val REMOVE_CUSTOM_ICON_CHAT = "remove_custom_icon_chat"
+const val USE_COMPRESSION_MESSAGES = "use_compression_messages"
 
 object AutoDeleteConfig {
 
@@ -70,6 +71,9 @@ class AdvancedSettings : AppCompatActivity() {
         val removeCustomIconChatSwitch =
             findViewById<SwitchCompat>(R.id.removeIdenticonInChatSwitch)
 
+        val useCompressionSwitch =
+            findViewById<SwitchCompat>(R.id.useCompressionSwitch)
+
         val autoDeleteTimeSpinner = findViewById<Spinner>(R.id.autoDeleteTiming)
 
         val autoDeleteNodesHoursAdapter = ArrayAdapter(
@@ -86,6 +90,7 @@ class AdvancedSettings : AppCompatActivity() {
         val autoDeleteNodesPref = advancedPrefs.getBoolean(AUTO_DELETE_OLD_NODES, false)
         val autoDeletePreserveFavPref = advancedPrefs.getBoolean(AUTO_DELETE_PRESERVE_FAVOURITES, false)
         val removeCustomIconChatPrefs = advancedPrefs.getBoolean(REMOVE_CUSTOM_ICON_CHAT, false)
+        val useMessageCompressionPrefs = advancedPrefs.getBoolean(USE_COMPRESSION_MESSAGES, false)
 
         val autoDeleteTimeHours = advancedPrefs.getInt(
             AUTO_DELETE_TIME_HOURS,
@@ -104,6 +109,7 @@ class AdvancedSettings : AppCompatActivity() {
         autoDeleteNodesSwitch.isChecked = autoDeleteNodesPref
         autoDeletePreserveFav.isChecked = autoDeletePreserveFavPref
         removeCustomIconChatSwitch.isChecked = removeCustomIconChatPrefs
+        useCompressionSwitch.isChecked = useMessageCompressionPrefs
 
         val autoDeleteSpinnerIndex = hoursValues
             .indexOf(autoDeleteTimeHours)
@@ -118,6 +124,7 @@ class AdvancedSettings : AppCompatActivity() {
         setSwitchListener(autoDeleteNodesSwitch, AUTO_DELETE_OLD_NODES)
         setSwitchListener(autoDeletePreserveFav, AUTO_DELETE_PRESERVE_FAVOURITES)
         setSwitchListener(removeCustomIconChatSwitch, REMOVE_CUSTOM_ICON_CHAT)
+        setSwitchListener(useCompressionSwitch, USE_COMPRESSION_MESSAGES)
 
         autoDeleteTimeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(

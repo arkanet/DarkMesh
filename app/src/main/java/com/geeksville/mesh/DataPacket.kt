@@ -86,10 +86,28 @@ data class DataPacket(
     )
 
     /**
-     * If this is a text message, return the string, otherwise null
+     * Text message constructor for Compressed or Text Messages
+     */
+    constructor(to: String?,
+                channel: Int,
+                text: String,
+                replyId: Int? = null,
+                dataType: Int
+    ) : this (
+        to = to,
+        bytes = text.encodeToByteArray(),
+        dataType = dataType,
+        channel = channel,
+        replyId = replyId ?: 0,
+    )
+
+    /**
+     * If this is a text message or compressed, return the string, otherwise null
      */
     val text: String?
-        get() = if (dataType == Portnums.PortNum.TEXT_MESSAGE_APP_VALUE) {
+        get() = if (
+            dataType == Portnums.PortNum.TEXT_MESSAGE_APP_VALUE ||
+            dataType == Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE) {
             bytes?.decodeToString()
         } else {
             null
