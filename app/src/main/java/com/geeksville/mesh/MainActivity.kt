@@ -1422,8 +1422,8 @@ class MainActivity : AppCompatActivity(), Logging {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
+    override fun onPause() {
+        super.onPause()
         maybePurgeNodes()
     }
 

@@ -215,18 +215,16 @@ internal fun MessageItem(
                             fontSize = MaterialTheme.typography.caption.fontSize,
                         )
 
-                        if(compressed){
-                            AnimatedVisibility(visible = fromLocal) {
-                                Icon(
-                                    imageVector = Icons.TwoTone.FolderZip,
-                                    contentDescription = "Message has been compressed",
-                                    modifier = Modifier
-                                        .padding(start = 8.dp)
-                                        .clickable {
-                                            Toast.makeText(ctx, "This message has been compressed!", Toast.LENGTH_SHORT).show()
-                                        },
-                                )
-                            }
+                        AnimatedVisibility(visible = compressed) {
+                            Icon(
+                                imageVector = Icons.TwoTone.FolderZip,
+                                contentDescription = "Message has been compressed",
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .clickable {
+                                        Toast.makeText(ctx, "This message has been compressed!", Toast.LENGTH_SHORT).show()
+                                    },
+                            )
                         }
 
                         AnimatedVisibility(visible = fromLocal) {
