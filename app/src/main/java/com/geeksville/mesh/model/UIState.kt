@@ -37,6 +37,7 @@ import com.geeksville.mesh.IMeshService
 import com.geeksville.mesh.Position
 import com.geeksville.mesh.android.Logging
 import com.geeksville.mesh.android.advancedPrefs
+import com.geeksville.mesh.android.compressionPrefs
 import com.geeksville.mesh.database.DbImportState
 import com.geeksville.mesh.database.DbImportState.ARGS_TAG
 import com.geeksville.mesh.database.DbImportState.ARG_FAVORITE_ONLY
@@ -568,7 +569,10 @@ class UIViewModel @Inject constructor(
         val channel = contactKey[0].digitToIntOrNull()
         val dest = if (channel != null) contactKey.substring(1) else contactKey
 
-        val portnum = if (app.advancedPrefs.getBoolean(USE_COMPRESSION_MESSAGES, false)) {
+        val useCompression = app.advancedPrefs.getBoolean(USE_COMPRESSION_MESSAGES, false)
+        val useCompressionOnContact = app.compressionPrefs.getBoolean(contactKey, false)
+
+        val portnum = if(useCompressionOnContact && useCompression){
             Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE
         } else {
             Portnums.PortNum.TEXT_MESSAGE_APP_VALUE

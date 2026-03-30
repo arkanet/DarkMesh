@@ -103,6 +103,7 @@ import com.emp3r0r7.darkmesh.R
 import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.android.Logging
 import com.geeksville.mesh.android.advancedPrefs
+import com.geeksville.mesh.android.compressionPrefs
 import com.geeksville.mesh.database.entity.QuickChatAction
 import com.geeksville.mesh.model.Message
 import com.geeksville.mesh.model.Node
@@ -228,6 +229,12 @@ internal fun MessageScreen(
         false
     )
 
+    val useCompressionOnContact by rememberBooleanPreference(
+        context.compressionPrefs,
+        contactKey,
+        false
+    )
+
     val canResend by remember {
         derivedStateOf {
             selectedIds.value.isNotEmpty() &&
@@ -313,7 +320,8 @@ internal fun MessageScreen(
                     contactKey,
                     channelName,
                     onNavigateBack,
-                    useCompressedMessages = useCompressedMessages
+                    useCompressedMessages = useCompressedMessages,
+                    useCompressionOnContact = useCompressionOnContact
                 )
             }
         },
@@ -526,7 +534,8 @@ private fun MessageTopBar(
         }
         localContext.startActivity(intent)
     },
-    useCompressedMessages: Boolean
+    useCompressedMessages: Boolean,
+    useCompressionOnContact: Boolean
 ) = TopAppBar(
     title = { Text(text = title) },
     navigationIcon = {
@@ -537,31 +546,34 @@ private fun MessageTopBar(
             )
         }
     },
+
     actions = {
+        if(useCompressedMessages){
+            Icon(
+                imageVector = Icons.TwoTone.FolderZip,
+                contentDescription = "Compress Messages",
+                modifier = Modifier
+                    .padding(start = 8.dp)
+            )
 
-        Icon(
-            imageVector = Icons.TwoTone.FolderZip,
-            contentDescription = "Compress Messages",
-            modifier = Modifier
-                .padding(start = 8.dp)
-        )
-        Switch(
-            checked = useCompressedMessages,
-            onCheckedChange = {
+            Switch(
+                checked = useCompressionOnContact,
+                onCheckedChange = {
 
-                val status = if (it) "ON" else "OFF"
+                    val status = if (it) "ON" else "OFF"
 
-                Toast.makeText(
-                    localContext,
-                    "Text Compression: $status",
-                    Toast.LENGTH_SHORT
-                ).show()
+                    Toast.makeText(
+                        localContext,
+                        "Compression for $channelName: $status",
+                        Toast.LENGTH_SHORT
+                    ).show()
 
-                localContext.advancedPrefs.edit {
-                    putBoolean(USE_COMPRESSION_MESSAGES, it).apply()
+                    localContext.compressionPrefs.edit {
+                        putBoolean(contactKey, it).commit()
+                    }
                 }
-            }
-        )
+            )
+        }
 
         if (contactKey.contains(DataPacket.ID_BROADCAST)) {
             BroadcastIconButton(onClick = onBroadcastClick)

@@ -25,6 +25,7 @@ import android.os.Looper
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import com.geeksville.mesh.ui.ADV_SETTINGS_PREFS
+import com.geeksville.mesh.ui.COMPRESSED_CHATS_PREFS
 
 
 /// show a toast
@@ -49,3 +50,6 @@ fun Activity.hideKeyboard() {
 
 val Context.advancedPrefs: SharedPreferences
     get() = getSharedPreferences(ADV_SETTINGS_PREFS, Context.MODE_PRIVATE)
+
+val Context.compressionPrefs: SharedPreferences
+    get() = getSharedPreferences(COMPRESSED_CHATS_PREFS, Context.MODE_PRIVATE)

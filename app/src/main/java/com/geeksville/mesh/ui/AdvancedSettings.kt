@@ -28,6 +28,7 @@ const val AUTO_DELETE_TIME_HOURS = "auto_delete_time_hours"
 const val AUTO_DELETE_PRESERVE_FAVOURITES = "auto_delete_preserve_favourites"
 const val REMOVE_CUSTOM_ICON_CHAT = "remove_custom_icon_chat"
 const val USE_COMPRESSION_MESSAGES = "use_compression_messages"
+const val COMPRESSED_CHATS_PREFS = "compressed_chats_prefs"
 
 object AutoDeleteConfig {
 
