@@ -318,7 +318,6 @@ internal fun MessageScreen(
                     title,
                     channelIndex,
                     contactKey,
-                    channelName,
                     onNavigateBack,
                     useCompressedMessages = useCompressedMessages,
                     useCompressionOnContact = useCompressionOnContact
@@ -523,21 +522,20 @@ private fun ActionModeTopBar(
 @Composable
 private fun MessageTopBar(
     localContext: Context,
-    title: String,
+    chatName: String,
     channelIndex: Int?,
     contactKey:  String,
-    channelName: String,
     onNavigateBack: () -> Unit,
     onBroadcastClick: () -> Unit = {
         val intent = Intent(localContext, PlanMsgActivity::class.java).apply {
-            putExtra(NODE_ID_EXTRA_PARAM, "$contactKey^$channelName")
+            putExtra(NODE_ID_EXTRA_PARAM, "$contactKey^$chatName")
         }
         localContext.startActivity(intent)
     },
     useCompressedMessages: Boolean,
     useCompressionOnContact: Boolean
 ) = TopAppBar(
-    title = { Text(text = title) },
+    title = { Text(text = chatName) },
     navigationIcon = {
         IconButton(onClick = onNavigateBack) {
             Icon(
@@ -564,7 +562,7 @@ private fun MessageTopBar(
 
                     Toast.makeText(
                         localContext,
-                        "Compression for $channelName: $status",
+                        "Compression for $chatName: $status",
                         Toast.LENGTH_SHORT
                     ).show()
 
