@@ -1453,7 +1453,7 @@ class MainActivity : AppCompatActivity(), Logging {
 
             val epochSeconds = hours.toLong() * 60 * 60
 
-            model.nodeList.value.toList().filter { n ->
+            model.unfilteredNodeList.value.toList().filter { n ->
                 n.shouldBeFilteredWhenPurging(ourNode, now, epochSeconds, preserveFav)
 
             }.forEach { n ->

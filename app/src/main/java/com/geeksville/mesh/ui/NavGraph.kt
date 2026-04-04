@@ -483,7 +483,7 @@ fun NavGraph(
         modifier = modifier,
     ) {
         composable<Route.NodeDetail> {
-            NodeDetailScreen { navController.navigate(route = it) }
+            NodeDetailScreen(uiViewModel = uiModel) { navController.navigate(route = it)}
         }
         composable<Route.DeviceMetrics> {
             val parentEntry = remember { navController.getBackStackEntry<Route.NodeDetail>() }

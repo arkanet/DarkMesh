@@ -30,6 +30,7 @@ import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,24 +41,47 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.emp3r0r7.darkmesh.R
+import com.geeksville.mesh.database.entity.NodeRegistry
 import com.geeksville.mesh.model.Node
 import com.geeksville.mesh.ui.activity.PlanMsgActivity
 import com.geeksville.mesh.ui.activity.PlanMsgActivity.NODE_ID_EXTRA_PARAM
+import org.meshtastic.proto.copy
 
 @Suppress("LongMethod")
 @Composable
 fun NodeMenu(
-    node: Node,
+    nodeModel: Node,
     isThisNode: Boolean = false,
     isConnected: Boolean = false,
     showFullMenu: Boolean = false,
     onDismissRequest: () -> Unit,
     expanded: Boolean = false,
+    nodeRegistry: NodeRegistry? = null,
     onAction: (NodeMenuAction) -> Unit
 ) {
     val context = LocalContext.current
     var displayIgnoreDialog by remember { mutableStateOf(false) }
     var displayRemoveDialog by remember { mutableStateOf(false) }
+
+    val isKnownNode = remember(nodeRegistry) {
+        derivedStateOf { nodeRegistry == null }
+    }
+
+    val node = remember(nodeRegistry, nodeModel) {
+        if (nodeRegistry != null && nodeRegistry.nodeNum != null) {
+            nodeModel.copy(
+                num = nodeRegistry.nodeNum,
+                user = nodeModel.user.copy {
+                    longName = nodeRegistry.longName ?: longName
+                    shortName = nodeRegistry.shortName ?: shortName
+                    id = nodeRegistry.nodeId
+                }
+            )
+        } else {
+            nodeModel
+        }
+    }
+
     if (displayIgnoreDialog) {
         SimpleAlertDialog(
             title = R.string.ignore,
@@ -118,6 +142,7 @@ fun NodeMenu(
 
         if (showFullMenu) {
             DropdownMenuItem(
+                enabled = isKnownNode.value,
                 onClick = {
                     onDismissRequest()
                     onAction(NodeMenuAction.DirectMessage(node))
@@ -153,6 +178,7 @@ fun NodeMenu(
                 content = { Text(stringResource(R.string.traceroute)) }
             )
             DropdownMenuItem(
+                enabled = isKnownNode.value,
                 onClick = {
                     onDismissRequest()
                     val intent = Intent(context, PlanMsgActivity::class.java).apply {
@@ -164,6 +190,7 @@ fun NodeMenu(
             )
 
             DropdownMenuItem(
+                enabled = isKnownNode.value,
                 onClick = {
                     onDismissRequest()
                     onAction(NodeMenuAction.FavoriteNode(node))
@@ -171,6 +198,7 @@ fun NodeMenu(
                 content = { Text("Set Favorite") }
             )
             DropdownMenuItem(
+                enabled = isKnownNode.value,
                 onClick = {
                     onDismissRequest()
                     displayIgnoreDialog = true
@@ -187,16 +215,21 @@ fun NodeMenu(
                     modifier = Modifier.size(24.dp),
                 )
             }
-            DropdownMenuItem(
-                onClick = {
-                    onDismissRequest()
-                    displayRemoveDialog = true
-                },
-                enabled = !node.isIgnored,
-            ) { Text(stringResource(R.string.remove)) }
+
+            if(isKnownNode.value){
+                DropdownMenuItem(
+                    onClick = {
+                        onDismissRequest()
+                        displayRemoveDialog = true
+                    },
+                    enabled = !node.isIgnored,
+                ) { Text(stringResource(R.string.remove)) }
+            }
+
             Divider(Modifier.padding(vertical = 8.dp))
         }
         DropdownMenuItem(
+            enabled = isKnownNode.value,
             onClick = {
                 onDismissRequest()
                 onAction(NodeMenuAction.MoreDetails(node))

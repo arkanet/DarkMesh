@@ -112,6 +112,7 @@ class ContactsFragment : ScreenFragment("Messages"), Logging {
                         selectedList = selectedList,
                         onClick = ::onClick,
                         onLongClick = ::onLongClick,
+                        viewModel = model
                     )
                 }
             }
@@ -222,6 +223,7 @@ fun ContactListView(
     selectedList: List<String>,
     onClick: (Contact) -> Unit,
     onLongClick: (Contact) -> Unit,
+    viewModel: UIViewModel
 ) {
     val haptics = LocalHapticFeedback.current
     LazyColumn(
@@ -236,6 +238,7 @@ fun ContactListView(
                 contact = contact,
                 selected = selected,
                 onClick = { onClick(contact) },
+                viewModel = viewModel,
                 onLongClick = {
                     onLongClick(contact)
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)

@@ -52,10 +52,12 @@ import com.geeksville.mesh.concurrent.handledLaunch
 import com.geeksville.mesh.database.DbImportState
 import com.geeksville.mesh.database.DbImportState.dbImportContactMap
 import com.geeksville.mesh.database.MeshLogRepository
+import com.geeksville.mesh.database.NodeRegistryRepository
 import com.geeksville.mesh.database.PacketRepository
 import com.geeksville.mesh.database.entity.MeshLog
 import com.geeksville.mesh.database.entity.MyNodeEntity
 import com.geeksville.mesh.database.entity.NodeEntity
+import com.geeksville.mesh.database.entity.NodeRegistry
 import com.geeksville.mesh.database.entity.Packet
 import com.geeksville.mesh.database.entity.ReactionEntity
 import com.geeksville.mesh.model.DeviceVersion
@@ -99,6 +101,7 @@ import org.meshtastic.proto.AdminProtos
 import org.meshtastic.proto.AppOnlyProtos
 import org.meshtastic.proto.ChannelProtos
 import org.meshtastic.proto.ConfigProtos
+import org.meshtastic.proto.ConfigProtos.Config
 import org.meshtastic.proto.LocalOnlyProtos.LocalConfig
 import org.meshtastic.proto.LocalOnlyProtos.LocalModuleConfig
 import org.meshtastic.proto.MeshProtos
@@ -167,6 +170,9 @@ class MeshService : Service(), Logging {
 
     @Inject
     lateinit var mqttRepository: MQTTRepository
+
+    @Inject
+    lateinit var nodeRegistryRepository: NodeRegistryRepository
 
     private lateinit var huntingPrefs: SharedPreferences
 
@@ -1148,8 +1154,26 @@ class MeshService : Service(), Logging {
 
     // Update our DB of users based on someone sending out a User subpacket
     private fun handleReceivedUser(fromNum: Int, p: MeshProtos.User, channel: Int = 0, dbImport: Boolean = false) {
+
         updateNodeInfo(fromNum) {
             val newNode = (it.isUnknownUser && p.hwModel != MeshProtos.HardwareModel.UNSET)
+
+            if(p.hwModel != MeshProtos.HardwareModel.UNSET &&
+                p.role != Config.DeviceConfig.Role.UNRECOGNIZED &&
+                !p.longName.startsWith("Meshtastic") //we dont want to store default names
+            ){ //we try to update every fully decoded nodeinfo
+                val nodeRegistry = NodeRegistry(
+                    nodeId = p.id,
+                    nodeNum = fromNum,
+                    longName = p.longName,
+                    shortName = p.shortName,
+                    lastSeen = System.currentTimeMillis(),
+                )
+
+                serviceScope.handledLaunch {
+                    nodeRegistryRepository.upsert(nodeRegistry)
+                }
+            }
 
             val keyMatch = !it.hasPKC || it.user.publicKey == p.publicKey
             it.user = if (keyMatch) p else p.copy {

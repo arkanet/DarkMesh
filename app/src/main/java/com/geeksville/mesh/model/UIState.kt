@@ -46,10 +46,12 @@ import com.geeksville.mesh.database.DbImportState.MAX_ALLOWED_DB_SIZE_BYTES
 import com.geeksville.mesh.database.DbImportState.NODE_EXPORT_DB_VER
 import com.geeksville.mesh.database.DbImportState.NODE_EXPORT_SEPARATOR
 import com.geeksville.mesh.database.MeshLogRepository
+import com.geeksville.mesh.database.NodeRegistryRepository
 import com.geeksville.mesh.database.NodeRepository
 import com.geeksville.mesh.database.PacketRepository
 import com.geeksville.mesh.database.QuickChatActionRepository
 import com.geeksville.mesh.database.entity.MyNodeEntity
+import com.geeksville.mesh.database.entity.NodeRegistry
 import com.geeksville.mesh.database.entity.Packet
 import com.geeksville.mesh.database.entity.QuickChatAction
 import com.geeksville.mesh.repository.datastore.RadioConfigRepository
@@ -209,6 +211,7 @@ class UIViewModel @Inject constructor(
     private val quickChatActionRepository: QuickChatActionRepository,
     private val preferences: SharedPreferences,
     private val serviceRepository: ServiceRepository,
+    private val nodeRegistryRepository: NodeRegistryRepository
     ) : ViewModel(), Logging {
 
     private val _lastRelayNode = MutableStateFlow<RelayEvent?>(null)
@@ -355,6 +358,26 @@ class UIViewModel @Inject constructor(
         initialValue = emptyList(),
     )
 
+    val unfilteredNodeList: StateFlow<List<Node>> = nodeDB.getNodes().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = emptyList(),
+    )
+
+    val nodeRegistryMap: StateFlow<Map<String, NodeRegistry>> =
+        nodeRegistryRepository.getAllNodes()
+            .onEach { debug("DAO emitted list size=${it.size}") }
+            .map { list ->
+                val map = list.associateBy { it.nodeId }
+                debug("Mapped registry size=${map.size}")
+                map
+            }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.Eagerly,
+                initialValue = emptyMap(),
+            )
+
     // hardware info about our local device (can be null)
     val myNodeInfo: StateFlow<MyNodeEntity?> get() = nodeDB.myNodeInfo
     val ourNodeInfo: StateFlow<Node?> get() = nodeDB.ourNodeInfo
@@ -391,7 +414,7 @@ class UIViewModel @Inject constructor(
         radioConfigRepository.relayEvents
             .onEach { relayEvent ->
 
-                val nodes = nodeList.value
+                val nodes = unfilteredNodeList.value
                 val ourNodeNum = ourNodeInfo.value?.num
 
                 if (relayEvent.relayNodeLastByte > 0){ //relayed packets

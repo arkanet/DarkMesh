@@ -39,6 +39,7 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,12 +55,14 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.emp3r0r7.darkmesh.R
 import com.geeksville.mesh.DataPacket
+import com.geeksville.mesh.database.entity.NodeRegistry
 import com.geeksville.mesh.database.entity.Reaction
 import com.geeksville.mesh.model.Message
 import com.geeksville.mesh.model.UIViewModel
+import com.geeksville.mesh.service.MeshService
 import com.geeksville.mesh.ui.components.NodeMenu
 import com.geeksville.mesh.ui.components.NodeMenuAction
 import com.geeksville.mesh.ui.components.SimpleAlertDialog
@@ -73,7 +76,7 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun MessageList(
     messages: List<Message>,
-    viewModel: UIViewModel = hiltViewModel(),
+    viewModel: UIViewModel,
     selectedIds: MutableState<Set<Long>>,
     onUnreadChanged: (Long) -> Unit,
     contentPadding: PaddingValues,
@@ -84,7 +87,9 @@ internal fun MessageList(
     val coroutineScope = rememberCoroutineScope()
     var highlightedMessageId by remember { mutableStateOf<Long?>(null) }
     var swipeLocked by remember { mutableStateOf(false) }
-
+    val nodeRegistryEntities by viewModel.nodeRegistryMap.collectAsStateWithLifecycle()
+    val nodes by viewModel.unfilteredNodeList.collectAsStateWithLifecycle()
+    val connected = viewModel.connectionState.collectAsState().value == MeshService.ConnectionState.CONNECTED
     val haptics = LocalHapticFeedback.current
     val inSelectionMode by remember { derivedStateOf { selectedIds.value.isNotEmpty() } }
     val listState = rememberLazyListState(
@@ -112,7 +117,10 @@ internal fun MessageList(
     var showReactionDialog by remember { mutableStateOf<List<Reaction>?>(null) }
     if (showReactionDialog != null) {
         val reactions = showReactionDialog ?: return
-        ReactionDialog(reactions) { showReactionDialog = null }
+        ReactionDialog(
+            reactions,
+            viewModel
+        ) { showReactionDialog = null }
     }
 
     fun MutableState<Set<Long>>.toggle(uuid: Long) = if (value.contains(uuid)) {
@@ -150,6 +158,7 @@ internal fun MessageList(
 
                 Box(Modifier.wrapContentSize(Alignment.TopStart)) {
                     var expandedNodeMenu by remember { mutableStateOf(false) }
+                    var nodeRegistry by remember { mutableStateOf<NodeRegistry?>(null) }
 
                     val repliedMessage = remember(msg.replyId, messages) {
                         msg.replyId?.let { replyId ->
@@ -185,23 +194,40 @@ internal fun MessageList(
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             },
                             onChipClick = {
-                                if (msg.node.num != 0) {
+                                val nodeId = msg.node.user.id
+                                val node = nodes.firstOrNull{ it.user.id == nodeId }
+
+                                if(node == null || node.isUnknownUser){
+
+                                    nodeRegistry = nodeRegistryEntities[nodeId]
+
+                                    if(nodeRegistry != null){
+                                        expandedNodeMenu = true
+                                    }
+
+                                } else if(msg.node.num != 0){
                                     expandedNodeMenu = true
                                 }
                             },
                             onStatusClick = { showStatusDialog = msg },
                             onSendReaction = { onSendReaction(it, msg.packetId) },
                             onQuotedClick = { quoted -> highlightMessage(quoted) },
+                            uiModel = viewModel
                         )
                     }
 
-                    NodeMenu(
-                        node = msg.node,
-                        showFullMenu = true,
-                        expanded = expandedNodeMenu,
-                        onDismissRequest = { expandedNodeMenu = false },
-                        onAction = onNodeMenuAction
-                    )
+                    if(connected){
+                        NodeMenu(
+                            nodeModel = msg.node,
+                            showFullMenu = true,
+                            expanded = expandedNodeMenu,
+                            nodeRegistry = nodeRegistry,
+                            onDismissRequest = {
+                                expandedNodeMenu = false
+                            },
+                            onAction = onNodeMenuAction
+                        )
+                    }
                 }
             }
         }

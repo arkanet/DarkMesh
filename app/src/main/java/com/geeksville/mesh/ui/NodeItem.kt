@@ -92,9 +92,12 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.emp3r0r7.darkmesh.R
 import com.geeksville.mesh.android.advancedPrefs
 import com.geeksville.mesh.model.Node
+import com.geeksville.mesh.model.UIViewModel
 import com.geeksville.mesh.ui.components.NodeKeyStatusIcon
 import com.geeksville.mesh.ui.components.NodeMenu
 import com.geeksville.mesh.ui.components.NodeMenuAction
@@ -125,9 +128,11 @@ fun NodeItem(
     expanded: Boolean = false,
     currentTimeMillis: Long,
     isConnected: Boolean = false,
+    viewModel: UIViewModel = hiltViewModel()
 ) {
 
     val context = LocalContext.current
+    val nodeRegistry by viewModel.nodeRegistryMap.collectAsStateWithLifecycle()
 
     val removeCustomIconChatPrefs by rememberBooleanPreference(
         context.advancedPrefs,
@@ -136,7 +141,21 @@ fun NodeItem(
     )
 
     val isIgnored = thatNode.isIgnored
-    val longName = thatNode.user.longName.ifEmpty { stringResource(id = R.string.unknown_username) }
+
+    var longName = thatNode.user.longName.ifEmpty { stringResource(id = R.string.unknown_username) }
+    var shortName = thatNode.user.shortName.ifEmpty { "???" }
+
+    var style = LocalTextStyle.current
+
+    if(thatNode.isUnknownUser){
+        style = LocalTextStyle.current.copy(fontStyle = FontStyle.Italic)
+
+        nodeRegistry[thatNode.user.id]?.let {
+            longName = it.longName
+            shortName = it.shortName
+        }
+    }
+
     val unmessagable = thatNode.user.isUnmessagable
 
     val isThisNode = thisNode?.num == thatNode.num
@@ -157,12 +176,6 @@ fun NodeItem(
     }
 
     val infrastructure = AppUtil.isInfrastructure(roleName)
-
-    val style = if (thatNode.isUnknownUser) {
-        LocalTextStyle.current.copy(fontStyle = FontStyle.Italic)
-    } else {
-        LocalTextStyle.current
-    }
 
     val (detailsShown, showDetails) = remember { mutableStateOf(expanded) }
 
@@ -206,7 +219,7 @@ fun NodeItem(
                             ) {
                                 Text(
                                     modifier = Modifier.fillMaxWidth(),
-                                    text = thatNode.user.shortName.ifEmpty { "???" },
+                                    text = shortName,
                                     fontWeight = FontWeight.Normal,
                                     fontSize = MaterialTheme.typography.button.fontSize,
                                     textDecoration = TextDecoration.LineThrough.takeIf { isIgnored },
@@ -215,7 +228,7 @@ fun NodeItem(
                             }
                         } else {
                             PremiumChip(
-                                text = thatNode.user.shortName.ifEmpty { "???" },
+                                text = shortName,
                                 nodeColor = Color(nodeColor),
                                 textColor = Color(textColor),
                                 icon = IdentIkonGen.generateOrGetFromHexId(id),
@@ -226,7 +239,7 @@ fun NodeItem(
                         }
 
                         NodeMenu(
-                            node = thatNode,
+                            nodeModel = thatNode,
                             isThisNode = isThisNode,
                             isConnected = isConnected,
                             showFullMenu = !isThisNode && isConnected,

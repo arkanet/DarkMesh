@@ -96,7 +96,6 @@ import com.geeksville.mesh.ui.theme.AppTheme
 import com.geeksville.mesh.util.AppUtil
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
-import org.meshtastic.proto.ConfigProtos
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -156,8 +155,6 @@ fun NodesScreen(
     navigateToNodeDetails: (Int) -> Unit,
 ) {
     val state by model.nodesUiState.collectAsStateWithLifecycle()
-    val role by model.deviceRole.collectAsStateWithLifecycle()
-
     val nodes by model.nodeList.collectAsStateWithLifecycle()
     val ourNode by model.ourNodeInfo.collectAsStateWithLifecycle()
 
@@ -166,17 +163,16 @@ fun NodesScreen(
     val currentTimeMillis = rememberTimeTickWithLifecycle()
     val connectionState by model.connectionState.collectAsStateWithLifecycle()
 
-
-    //filters nodes with same long name as ours which can occur when switching to SENSOR MODE
-    //fixme maybe set arbitrary randomized name when db init occurs in FW!
-    val filteredNodes = run {
-        val ourNodeName = ourNode?.user?.longName
-        val ourNodeId = ourNode?.user?.id
-
-        if (ourNodeName != null && ourNodeId != null && ConfigProtos.Config.DeviceConfig.Role.SENSOR == role) {
-            nodes.filterNot { it.user.longName == ourNodeName && it.user.id != ourNodeId }
-        } else nodes
-    }
+//    //filters nodes with same long name as ours which can occur when switching to SENSOR MODE
+//    //fixme maybe set arbitrary randomized name when db init occurs in FW!
+//    val filteredNodes = run {
+//        val ourNodeName = ourNode?.user?.longName
+//        val ourNodeId = ourNode?.user?.id
+//
+//        if (ourNodeName != null && ourNodeId != null && ConfigProtos.Config.DeviceConfig.Role.SENSOR == role) {
+//            nodes.filterNot { it.user.longName == ourNodeName && it.user.id != ourNodeId }
+//        } else nodes
+//    }
 
     LazyColumn(
         state = listState,
@@ -208,7 +204,7 @@ fun NodesScreen(
 
         }
 
-        items(filteredNodes, key = { it.num }) { node ->
+        items(nodes, key = { it.num }) { node ->
             NodeItem(
                 thisNode = ourNode,
                 thatNode = node,

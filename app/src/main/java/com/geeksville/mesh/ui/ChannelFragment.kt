@@ -383,7 +383,7 @@ fun ChannelScreen(
                             return@OutlinedButton
                         }
 
-                        viewModel.nodeList.value.firstOrNull { it.num == contactProto.nodeNum }.let {
+                        viewModel.unfilteredNodeList.value.firstOrNull { it.num == contactProto.nodeNum }.let {
                             if(it != null){
                                 viewModel.showSnackbar("You already have " + "${contactProto.user.longName}")
                                 return@OutlinedButton

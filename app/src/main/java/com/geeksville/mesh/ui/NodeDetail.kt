@@ -76,6 +76,7 @@ import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material.icons.outlined.Navigation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -101,6 +102,7 @@ import com.emp3r0r7.darkmesh.R
 import com.geeksville.mesh.model.MetricsState
 import com.geeksville.mesh.model.MetricsViewModel
 import com.geeksville.mesh.model.Node
+import com.geeksville.mesh.model.UIViewModel
 import com.geeksville.mesh.ui.components.PreferenceCategory
 import com.geeksville.mesh.ui.preview.NodePreviewParameterProvider
 import com.geeksville.mesh.ui.share.SharedContactDialog
@@ -116,6 +118,7 @@ import kotlin.math.ln
 @Composable
 fun NodeDetailScreen(
     modifier: Modifier = Modifier,
+    uiViewModel: UIViewModel,
     viewModel: MetricsViewModel = hiltViewModel(),
     onNavigate: (Any) -> Unit,
 ) {
@@ -123,11 +126,15 @@ fun NodeDetailScreen(
 
     if (state.node != null) {
         val node = state.node ?: return
+        val nodeRegistryMap by uiViewModel.nodeRegistryMap.collectAsState()
+        val nodeBackup = nodeRegistryMap[node.user.id] != null
+
         NodeDetailList(
             node = node,
             metricsState = state,
             onNavigate = onNavigate,
             modifier = modifier,
+            nodeBackup = nodeBackup
         )
     } else {
         Box(
@@ -144,6 +151,7 @@ private fun NodeDetailList(
     modifier: Modifier = Modifier,
     node: Node,
     metricsState: MetricsState,
+    nodeBackup: Boolean,
     onNavigate: (Any) -> Unit = {},
 ) {
     LazyColumn(
@@ -179,7 +187,7 @@ private fun NodeDetailList(
         if (metricsState.deviceHardware != null) {
             item {
                 PreferenceCategory("Device") {
-                    DeviceDetailsContent(metricsState)
+                    DeviceDetailsContent(metricsState, nodeBackup)
                 }
             }
         }
@@ -264,6 +272,7 @@ private fun NodeDetailRow(
 @Composable
 private fun DeviceDetailsContent(
     state: MetricsState,
+    nodeBackup: Boolean,
 ) {
     val deviceHardware = state.deviceHardware ?: return
     val hwModelName = deviceHardware.displayName
@@ -279,6 +288,15 @@ private fun DeviceDetailsContent(
     if (isSupported) {
         NodeDetailRow(
             label = "Supported",
+            icon = Icons.Default.Verified,
+            value = "",
+            iconTint = Color.Green
+        )
+    }
+
+    if(nodeBackup){
+        NodeDetailRow(
+            label = "Node Backup Available",
             icon = Icons.Default.Verified,
             value = "",
             iconTint = Color.Green
@@ -669,6 +687,7 @@ private fun NodeDetailsPreview(
         NodeDetailList(
             node = node,
             metricsState = MetricsState.Empty,
+            nodeBackup = true
         )
     }
 }

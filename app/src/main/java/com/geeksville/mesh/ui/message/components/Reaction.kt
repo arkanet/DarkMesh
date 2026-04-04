@@ -53,11 +53,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.geeksville.mesh.database.entity.Reaction
+import com.geeksville.mesh.model.UIViewModel
 import com.geeksville.mesh.ui.components.BottomSheetDialog
 import com.geeksville.mesh.ui.components.EmojiPickerDialog
 import com.geeksville.mesh.ui.theme.AppTheme
@@ -169,6 +172,7 @@ fun reduceEmojis(emojis: List<String>): Map<String, Int> = emojis.groupingBy { i
 @Composable
 fun ReactionDialog(
     reactions: List<Reaction>,
+    viewModel: UIViewModel,
     onDismiss: () -> Unit = {}
 ) = BottomSheetDialog(
     onDismiss = onDismiss,
@@ -177,6 +181,8 @@ fun ReactionDialog(
     val groupedEmojis = reactions.groupBy { it.emoji }
     var selectedEmoji by remember { mutableStateOf<String?>(null) }
     val filteredReactions = selectedEmoji?.let { groupedEmojis[it] ?: emptyList() } ?: reactions
+    val nodeRegistry by viewModel.nodeRegistryMap.collectAsStateWithLifecycle()
+    val nodes by viewModel.unfilteredNodeList.collectAsStateWithLifecycle()
 
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -204,14 +210,27 @@ fun ReactionDialog(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(filteredReactions) { reaction ->
+
+            var longName = reaction.user.longName
+            var fontStyle = FontStyle.Normal
+            val node = nodes.firstOrNull{it.user.id == reaction.user.id}
+
+            if(node == null || node.isUnknownUser){
+                fontStyle = FontStyle.Italic
+                nodeRegistry[reaction.user.id]?.let {
+                    longName = it.longName
+                }
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = reaction.user.longName,
-                    style = MaterialTheme.typography.subtitle1
+                    text = longName,
+                    style = MaterialTheme.typography.subtitle1,
+                    fontStyle = fontStyle,
                 )
                 Text(
                     text = reaction.emoji,

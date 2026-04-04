@@ -86,6 +86,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
@@ -189,7 +190,7 @@ sealed class MessageMenuAction {
 internal fun MessageScreen(
     contactKey: String,
     message: String,
-    viewModel: UIViewModel = hiltViewModel(),
+    viewModel: UIViewModel,
     navigateToMessages: (Node) -> Unit,
     navigateToNodeDetails: (Int) -> Unit,
     onNavigateBack: () -> Unit
@@ -197,6 +198,8 @@ internal fun MessageScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
+    val nodeRegistry by viewModel.nodeRegistryMap.collectAsStateWithLifecycle()
+    val nodes by viewModel.unfilteredNodeList.collectAsStateWithLifecycle()
 
     val replyTo by viewModel.replyTo.collectAsStateWithLifecycle()
     val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
@@ -313,14 +316,26 @@ internal fun MessageScreen(
                     }
                 }
             } else {
+
+                var chatName = title
+                val node = nodes.firstOrNull{it.user.id == nodeId}
+                val unknownUserNode = nodeId != DataPacket.ID_BROADCAST && (node == null || node.isUnknownUser)
+
+                if(unknownUserNode){
+                    nodeRegistry[nodeId]?.let {
+                        chatName = it.longName
+                    }
+                }
+
                 MessageTopBar(
                     context,
-                    title,
+                    chatName,
                     channelIndex,
                     contactKey,
                     onNavigateBack,
                     useCompressedMessages = useCompressedMessages,
-                    useCompressionOnContact = useCompressionOnContact
+                    useCompressionOnContact = useCompressionOnContact,
+                    unknownNode = unknownUserNode
                 )
             }
         },
@@ -533,9 +548,13 @@ private fun MessageTopBar(
         localContext.startActivity(intent)
     },
     useCompressedMessages: Boolean,
-    useCompressionOnContact: Boolean
+    useCompressionOnContact: Boolean,
+    unknownNode: Boolean
 ) = TopAppBar(
-    title = { Text(text = chatName) },
+    title = { Text(
+        text = chatName,
+        fontStyle = if (unknownNode) FontStyle.Italic else FontStyle.Normal
+    )},
     navigationIcon = {
         IconButton(onClick = onNavigateBack) {
             Icon(
@@ -629,7 +648,7 @@ private fun TextInput(
     val focusManager = LocalFocusManager.current
     var isFocused by remember { mutableStateOf(false) }
 
-    val nodes = viewModel.nodeList.collectAsStateWithLifecycle()
+    val nodes = viewModel.unfilteredNodeList.collectAsStateWithLifecycle()
     val ourNodeNum = viewModel.ourNodeInfo.collectAsState().value?.num
 
     var showNodes by remember { mutableStateOf(false) }
@@ -690,7 +709,6 @@ private fun TextInput(
                 } else if(!showNodes && it.text.last() == '@'){
 
                     showNodes = true
-                    println("TAGGING BEGIN") //todo remove
 
                     taggedNodes = nodes.value
                         .asSequence()
@@ -704,7 +722,6 @@ private fun TextInput(
 
                     showNodes = false
                     taggedNodes = null
-                    println("STOP TAGGING") //todo remove
                 }
 
                 lastChar = it.text.last()

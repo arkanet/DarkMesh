@@ -116,6 +116,7 @@ class ShareFragment : ScreenFragment("Messages"), Logging {
                     contacts = contacts,
                     selectedContact = selectedContact.value,
                     onClick = ::onClick,
+                    viewModel = model
                 )
             }
         }
@@ -127,6 +128,7 @@ fun ShareContactListView(
     contacts: List<Contact>,
     selectedContact: String,
     onClick: (Contact) -> Unit,
+    viewModel: UIViewModel
 ) {
     LazyColumn(
         modifier = Modifier
@@ -140,6 +142,7 @@ fun ShareContactListView(
                 selected = selected,
                 onClick = { onClick(contact) },
                 onLongClick = {},
+                viewModel = viewModel
             )
         }
     }
