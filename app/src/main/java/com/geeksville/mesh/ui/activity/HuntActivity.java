@@ -168,6 +168,7 @@ public class HuntActivity extends AppCompatActivity {
     public boolean onSupportNavigateUp() {
         Intent intent = new Intent(this, MainActivity.class);
         startActivity(intent);
+        finish();
         return true;
     }
 }

@@ -198,6 +198,7 @@ class AdvancedSettings : AppCompatActivity() {
     override fun onSupportNavigateUp(): Boolean {
         val intent = Intent(this, MainActivity::class.java)
         startActivity(intent)
+        finish()
         return true
     }
 }

@@ -21,14 +21,15 @@ import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
+import androidx.appcompat.widget.Toolbar;
 
 import com.emp3r0r7.darkmesh.R;
+import com.geeksville.mesh.MainActivity;
 import com.geeksville.mesh.database.entity.NodeEntity;
 import com.geeksville.mesh.prefs.UserPrefs;
 import com.geeksville.mesh.service.MeshService;
@@ -50,6 +51,15 @@ public class PlanMsgListActivity extends AppCompatActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_planmsglist);
+
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle("Planned Messages");
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowHomeEnabled(true);
+        }
 
         Intent intent = new Intent(this, MeshService.class);
         intent.setAction(MeshService.BIND_LOCAL_ACTION_INTENT);
@@ -166,9 +176,8 @@ public class PlanMsgListActivity extends AppCompatActivity {
             }
         }
 
-        if (nodeEntries.isEmpty()) {
-            TextView title = findViewById(R.id.planListTitle);
-            title.setText("No message has been planned.");
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle("No messages planned.");
         }
 
         ArrayAdapter<SpannableString> adapter = new ArrayAdapter<>(
@@ -219,6 +228,15 @@ public class PlanMsgListActivity extends AppCompatActivity {
         listView.setEnabled(serviceActive);
         listView.setAlpha(serviceActive ? 1.0f : 0.5f);
     }
+
+    @Override
+    public boolean onSupportNavigateUp() {
+        Intent intent = new Intent(this, MainActivity.class);
+        startActivity(intent);
+        finish();
+        return true;
+    }
+
 }
 
 

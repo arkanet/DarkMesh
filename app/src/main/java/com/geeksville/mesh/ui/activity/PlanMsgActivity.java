@@ -25,8 +25,10 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 
 import com.emp3r0r7.darkmesh.R;
+import com.geeksville.mesh.MainActivity;
 import com.geeksville.mesh.database.entity.NodeEntity;
 import com.geeksville.mesh.database.entity.QuickChatAction;
 import com.geeksville.mesh.prefs.UserPrefs;
@@ -74,6 +76,15 @@ public class PlanMsgActivity extends AppCompatActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_planmsg);
+
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle("Message Planner");
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowHomeEnabled(true);
+        }
 
         plannedMessagesPrefs = getSharedPreferences(UserPrefs.PlannedMessage.SHARED_PLANNED_MSG_PREFS, MODE_PRIVATE);
         msgStatusPrefs = getSharedPreferences(UserPrefs.PlannedMessage.SHARED_PLANMSG_PREFS_STATUS, MODE_PRIVATE);
@@ -363,6 +374,14 @@ public class PlanMsgActivity extends AppCompatActivity {
         }
 
         Log.d(TAG, PlanMsgActivity.class.getSimpleName() + " destroyed");
+    }
+
+    @Override
+    public boolean onSupportNavigateUp() {
+        Intent intent = new Intent(this, MainActivity.class);
+        startActivity(intent);
+        finish();
+        return true;
     }
 
 }
