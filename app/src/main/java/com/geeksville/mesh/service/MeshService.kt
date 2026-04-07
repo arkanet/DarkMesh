@@ -783,7 +783,7 @@ class MeshService : Service(), Logging {
         val beaconing = getPreferences(this)
             .getBoolean(PREF_STRESSTEST_ENABLED, false)
 
-        if(beaconing){
+        if(beaconing || p.dataType == Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE){
             priority = MeshPacket.Priority.ALERT
         }
 

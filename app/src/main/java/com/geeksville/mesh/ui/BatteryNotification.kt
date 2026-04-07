@@ -10,10 +10,12 @@ import android.widget.ArrayAdapter
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import androidx.core.content.edit
 import androidx.core.widget.doAfterTextChanged
 import com.emp3r0r7.darkmesh.R
 import com.emp3r0r7.darkmesh.databinding.ActivityBatteryNotificationBinding
+import com.geeksville.mesh.MainActivity
 import com.geeksville.mesh.android.getNotificationPermissions
 import com.geeksville.mesh.android.hasNotificationPermission
 import com.geeksville.mesh.android.rationaleDialog
@@ -86,6 +88,13 @@ class BatteryNotification : AppCompatActivity() {
 
         _binding = ActivityBatteryNotificationBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        setSupportActionBar(toolbar)
+
+        supportActionBar?.title = "Battery Notification"
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.setDisplayShowHomeEnabled(true)
 
         val preferences = UIViewModel.getPreferences(this)
 
@@ -313,5 +322,11 @@ class BatteryNotification : AppCompatActivity() {
             @Suppress("DEPRECATION")
             this?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
         }
+    }
+
+    override fun onSupportNavigateUp(): Boolean {
+        val intent = Intent(this, MainActivity::class.java)
+        startActivity(intent)
+        return true
     }
 }
