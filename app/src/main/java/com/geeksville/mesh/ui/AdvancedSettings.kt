@@ -1,5 +1,6 @@
 package com.geeksville.mesh.ui
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
@@ -10,8 +11,10 @@ import android.widget.Spinner
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
+import androidx.appcompat.widget.Toolbar
 import androidx.core.content.edit
 import com.emp3r0r7.darkmesh.R
+import com.geeksville.mesh.MainActivity
 import com.geeksville.mesh.android.advancedPrefs
 import com.geeksville.mesh.model.UIViewModel
 import com.geeksville.mesh.service.DistressService.PREF_STRESSTEST_DEFAULT_PREFIX
@@ -45,6 +48,13 @@ class AdvancedSettings : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_advanced_settings)
+
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        setSupportActionBar(toolbar)
+
+        supportActionBar?.title = "Advanced Settings"
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.setDisplayShowHomeEnabled(true)
 
         val uiModelPrefs = UIViewModel.getPreferences(this)
 
@@ -185,4 +195,9 @@ class AdvancedSettings : AppCompatActivity() {
         }
     }
 
+    override fun onSupportNavigateUp(): Boolean {
+        val intent = Intent(this, MainActivity::class.java)
+        startActivity(intent)
+        return true
+    }
 }

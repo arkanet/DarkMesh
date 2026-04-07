@@ -1,6 +1,5 @@
 package com.geeksville.mesh.ui.activity;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
@@ -12,7 +11,9 @@ import android.widget.Spinner;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
+import androidx.appcompat.widget.Toolbar;
 
 import com.emp3r0r7.darkmesh.R;
 import com.geeksville.mesh.MainActivity;
@@ -23,7 +24,7 @@ import com.geeksville.mesh.service.HuntScheduleService;
 import java.util.Arrays;
 import java.util.List;
 
-public class HuntActivity extends Activity {
+public class HuntActivity extends AppCompatActivity {
 
     private static final String DEFAULT_DOMAIN = "https://maps.loracity.it";
     private static final String DEFAULT_PUBLIC_API_TOKEN = "ioL4ath3";
@@ -40,6 +41,15 @@ public class HuntActivity extends Activity {
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_hunt);
+
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle("Hunting Mode");
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowHomeEnabled(true);
+        }
 
         final Intent huntService = new Intent(this, HuntScheduleService.class);
 
@@ -152,5 +162,12 @@ public class HuntActivity extends Activity {
                 }
             });
         });
+    }
+
+    @Override
+    public boolean onSupportNavigateUp() {
+        Intent intent = new Intent(this, MainActivity.class);
+        startActivity(intent);
+        return true;
     }
 }

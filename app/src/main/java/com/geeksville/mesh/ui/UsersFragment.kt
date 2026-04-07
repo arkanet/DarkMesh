@@ -180,7 +180,8 @@ fun NodesScreen(
     ) {
         stickyHeader {
 
-            if (relayNode != null) {
+            //we make sure this box is populated only for nodes != ournode
+            if (relayNode != null && relayNode.relayNodeNum != ourNode?.num) {
                 RelayInfoBox(relayNode, model)
             }
 

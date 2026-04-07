@@ -1,80 +1,89 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+
+
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:padding="16dp"
-    android:orientation="vertical"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fillViewport="true">
 
-    <TextView
-        android:id="@+id/txtNodeId"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        tools:ignore="HardcodedText"
-        android:text="Node: -" />
-
-    <TextView
-        android:id="@+id/plannerStatus"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Global Planner Status: UNKNOWN"
-        tools:ignore="HardcodedText" />
-
-    <Spinner
-        android:id="@+id/spinnerDay"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <Button
-        android:backgroundTint="#470202"
-        android:id="@+id/btnTime"
-        android:textColor="#FFFFFF"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Time: --:--"
-        android:layout_marginTop="8dp"
-        tools:ignore="HardcodedText" />
+        <TextView
+            android:id="@+id/txtNodeId"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Node: -"
+            tools:ignore="HardcodedText" />
 
-    <view class="com.geeksville.mesh.ui.activity.PlanMsgActivity$NDSpinner"
-        android:id="@+id/quick_messages"
-        android:layout_width="match_parent"
-        android:layout_height="50sp"
-        android:hint="Messaggio"
-        android:layout_marginTop="8dp"
-        tools:ignore="HardcodedText" />
+        <TextView
+            android:id="@+id/plannerStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Global Planner Status: UNKNOWN"
+            tools:ignore="HardcodedText" />
 
-    <EditText
-        android:id="@+id/inputMessage"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Message"
-        android:layout_marginTop="8dp"
-        tools:ignore="Autofill,HardcodedText,TextFields" />
+        <Spinner
+            android:id="@+id/spinnerDay"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp" />
 
-    <Button
-        android:backgroundTint="#470202"
-        android:textColor="#FFFFFF"
-        android:id="@+id/btnAdd"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        tools:ignore="HardcodedText"
-        android:text="Add"
-        android:layout_marginTop="8dp" />
+        <Button
+            android:id="@+id/btnTime"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#470202"
+            android:text="Time: --:--"
+            android:textColor="#FFFFFF"
+            tools:ignore="HardcodedText" />
 
-    <ListView
-        android:id="@+id/listRules"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginTop="12dp"
-        android:layout_weight="1" />
+        <view
+            android:id="@+id/quick_messages"
+            class="com.geeksville.mesh.ui.activity.PlanMsgActivity$NDSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="50sp"
+            android:layout_marginTop="8dp"
+            android:hint="Messaggio"
+            tools:ignore="HardcodedText" />
 
-    <Button
-        android:backgroundTint="#470202"
-        android:textColor="#FFFFFF"
-        android:id="@+id/btnSave"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        tools:ignore="HardcodedText"
-        android:text="Save" />
-</LinearLayout>
+        <EditText
+            android:id="@+id/inputMessage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="Message"
+            tools:ignore="Autofill,HardcodedText,TextFields" />
+
+        <Button
+            android:id="@+id/btnAdd"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#470202"
+            android:text="Add"
+            android:textColor="#FFFFFF"
+            tools:ignore="HardcodedText" />
+
+        <ListView
+            android:id="@+id/listRules"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="12dp"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/btnSave"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:backgroundTint="#470202"
+            android:text="Save"
+            android:textColor="#FFFFFF"
+            tools:ignore="HardcodedText" />
+    </LinearLayout>
+</ScrollView>
