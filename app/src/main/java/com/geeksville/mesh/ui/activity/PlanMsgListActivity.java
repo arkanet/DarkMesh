@@ -176,7 +176,7 @@ public class PlanMsgListActivity extends AppCompatActivity {
             }
         }
 
-        if (getSupportActionBar() != null) {
+        if (getSupportActionBar() != null && nodeEntries.isEmpty()) {
             getSupportActionBar().setTitle("No messages planned.");
         }
 
