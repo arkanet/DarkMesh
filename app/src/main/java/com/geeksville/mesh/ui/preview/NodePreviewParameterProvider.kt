@@ -127,7 +127,7 @@ class NodePreviewParameterProvider : PreviewParameterProvider<Node> {
         },
         environmentMetrics = environmentMetrics {},
         paxcounter = paxcount {},
-        nodeStatus = "Hello World "
+        nodeStatus = "Oggi il cielo è limpido e una brezza leggera rende la giornata davvero piacevole."
     )
 
     private val almostNothing = Node(

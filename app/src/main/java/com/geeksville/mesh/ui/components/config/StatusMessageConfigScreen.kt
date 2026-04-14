@@ -3,6 +3,7 @@ package com.geeksville.mesh.ui.components.config
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.Text
 import androidx.compose.material.TextField
@@ -42,6 +43,13 @@ fun StatusMessageConfigScreen(radioViewModel: RadioConfigViewModel = hiltViewMod
     ) {
 
         item { PreferenceCategory(text = "Status Message Config") }
+
+        item {
+            Text(
+                text = "The node will periodically broadcast a status message that nearby nodes can receive and display in the node list.",
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
 
         item {
 

@@ -89,6 +89,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -430,7 +431,7 @@ fun NodeItem(
                 }
 
                 maybeGetStatusMessage(ourStatusMessage, thatStatusMessage, isThisNode)?.let{
-                    StatusMessage(it, R.color.colorAnnotation, FontStyle.Italic)
+                    StatusMessage(it, style, FontStyle.Italic)
                 }
             }
         }
@@ -717,7 +718,7 @@ fun PremiumChip(
 @Composable
 fun StatusMessage(
     statusMessage: String,
-    colorRes: Int,
+    style: TextStyle,
     fontStyle: FontStyle
 ){
     Row(
@@ -729,13 +730,14 @@ fun StatusMessage(
             imageVector = Icons.AutoMirrored.Filled.Notes,
             contentDescription = null,
             modifier = Modifier.size(16.dp),
+            tint = Color.Green
         )
         Text(
             text = statusMessage,
             fontSize = MaterialTheme.typography.button.fontSize,
             maxLines = 2,
             fontStyle = fontStyle,
-            color =  colorResource(colorRes),
+            style = style,
             overflow = TextOverflow.Ellipsis,
         )
     }

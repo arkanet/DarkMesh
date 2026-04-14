@@ -46,9 +46,11 @@ import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.ContentAlpha
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
+import androidx.compose.material.LocalTextStyle
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Bolt
@@ -90,7 +92,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.AnnotatedString
@@ -217,16 +218,23 @@ private fun NodeDetailList(
         item {
             if(statusMessage != null){
                 val clipboardManager = LocalClipboardManager.current
+
                 PreferenceCategory("Status Message") {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth().padding(top = 15.dp, bottom = 5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Notes,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = Color.Green
+                        )
                         Text(
                             text = statusMessage,
-                            color = colorResource(R.color.colorAnnotation),
-                            modifier = Modifier.weight(1f)  .clickable {
+                            style = LocalTextStyle.current,
+                            modifier = Modifier.weight(1f).clickable {
                                 clipboardManager.setText(AnnotatedString(statusMessage))
                             }
                         )
