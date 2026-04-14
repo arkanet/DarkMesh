@@ -195,4 +195,16 @@ object AppUtil {
     fun nodeNumToHexId(nodeNum: Int): String {
         return "!" + nodeNum.toString(16)
     }
+
+    fun maybeGetStatusMessage(
+        ourStatusMessage: String,
+        thatStatusMessage: String?,
+        isThisNode: Boolean
+    ): String? {
+        return if (!ourStatusMessage.isBlank() && isThisNode){
+            ourStatusMessage
+        } else if(thatStatusMessage?.isBlank() == false && !isThisNode){
+            thatStatusMessage
+        } else null
+    }
 }

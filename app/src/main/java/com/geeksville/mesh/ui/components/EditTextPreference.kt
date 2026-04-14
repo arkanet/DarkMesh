@@ -211,6 +211,31 @@ fun EditTextPreference(
     }
 }
 
+@Composable
+fun EditTextPreference(
+    title: String,
+    value: String,
+    enabled: Boolean,
+    keyboardActions: KeyboardActions,
+    onValueChanged: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    isError: Boolean = false,
+    trailingIcon: @Composable (() -> Unit)? = null,
+) {
+    TextField(
+        value = value,
+        onValueChange = onValueChanged,
+        modifier = modifier,
+        enabled = enabled,
+        label = { Text(title) },
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        isError = isError,
+        trailingIcon = trailingIcon
+    )
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun EditTextPreferencePreview() {

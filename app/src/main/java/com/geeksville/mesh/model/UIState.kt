@@ -254,6 +254,15 @@ class UIViewModel @Inject constructor(
                 initialValue = Config.DeviceConfig.Role.UNRECOGNIZED
             )
 
+    val statusMessage: StateFlow<String> =
+        moduleConfig
+            .map { it.statusmessage.nodeStatus ?: "" }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = moduleConfig.value.statusmessage.nodeStatus ?: ""
+            )
+
     private val nodeFilterText = MutableStateFlow("")
     private val nodeSortOption = MutableStateFlow(NodeSortOption.LAST_HEARD)
     private val includeUnknown = MutableStateFlow(preferences.getBoolean("include-unknown", false))
@@ -652,6 +661,10 @@ class UIViewModel @Inject constructor(
         } catch (ex: RemoteException) {
             errormsg("Remove node error: ${ex.message}")
         }
+    }
+
+    fun clearNodeStatus(nodeNum: Int) = viewModelScope.launch(Dispatchers.IO) {
+        nodeDB.clearNodeStatus(nodeNum)
     }
 
     fun deleteNode(nodeNum: Int) = viewModelScope.launch(Dispatchers.IO) {

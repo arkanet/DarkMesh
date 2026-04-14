@@ -55,7 +55,8 @@ class NodePreviewParameterProvider : PreviewParameterProvider<Node> {
             voltage = 3.7F
             uptimeSeconds = 3600
         },
-        hopsAway = 0
+        hopsAway = 0,
+        nodeStatus = "Oggi il cielo è limpido e una brezza leggera rende la "
     )
 
     private val minnieMouse = mickeyMouse.copy(
@@ -69,7 +70,8 @@ class NodePreviewParameterProvider : PreviewParameterProvider<Node> {
         snr = 12.5F,
         rssi = -42,
         position = position {},
-        hopsAway = 1
+        hopsAway = 1,
+        nodeStatus = "Oggi il cielo è limpido e una brezza leggera rende la giornata davvero piacevole."
     )
 
     private val donaldDuck = Node(
@@ -112,7 +114,8 @@ class NodePreviewParameterProvider : PreviewParameterProvider<Node> {
             ble = 39
             uptime = 420
         },
-        hopsAway = 2
+        hopsAway = 2,
+        nodeStatus = "Oggi il cielo è limpido e una brezza leggera rende la giornata davvero piacevole."
     )
 
     private val unknown = donaldDuck.copy(
@@ -124,6 +127,7 @@ class NodePreviewParameterProvider : PreviewParameterProvider<Node> {
         },
         environmentMetrics = environmentMetrics {},
         paxcounter = paxcount {},
+        nodeStatus = "Hello World "
     )
 
     private val almostNothing = Node(

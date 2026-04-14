@@ -113,6 +113,16 @@ data class DataPacket(
             null
         }
 
+    val statusMessageText: String?
+        get() = if (
+            dataType == Portnums.PortNum.NODE_STATUS_APP_VALUE){
+            bytes?.let {
+                MeshProtos.StatusMessage.parseFrom(it).status
+            }
+        } else {
+            null
+        }
+
     constructor(to: String?, channel: Int, waypoint: MeshProtos.Waypoint) : this(
         to = to,
         bytes = waypoint.toByteArray(),

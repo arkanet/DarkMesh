@@ -124,6 +124,10 @@ class NodeRepository @Inject constructor(
         nodeInfoDao.deleteMetadata(num)
     }
 
+    suspend fun clearNodeStatus(num: Int) = withContext(dispatchers.io) {
+        nodeInfoDao.clearNodeStatus(num)
+    }
+
     suspend fun insertMetadata(metadata: MetadataEntity) = withContext(dispatchers.io) {
         nodeInfoDao.upsert(metadata)
     }

@@ -17,7 +17,10 @@
 
 package com.geeksville.mesh.ui
 
+import android.content.res.Configuration
+import android.graphics.BlurMaskFilter
 import android.graphics.LinearGradient
+import android.graphics.Paint
 import android.graphics.Shader
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
@@ -58,6 +61,7 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.PhonelinkErase
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.SettingsInputAntenna
@@ -89,15 +93,14 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.emp3r0r7.darkmesh.R
 import com.geeksville.mesh.android.advancedPrefs
+import com.geeksville.mesh.database.entity.NodeRegistry
 import com.geeksville.mesh.model.Node
-import com.geeksville.mesh.model.UIViewModel
 import com.geeksville.mesh.ui.components.NodeKeyStatusIcon
 import com.geeksville.mesh.ui.components.NodeMenu
 import com.geeksville.mesh.ui.components.NodeMenuAction
@@ -107,6 +110,7 @@ import com.geeksville.mesh.ui.compose.SatelliteCountInfo
 import com.geeksville.mesh.ui.preview.NodePreviewParameterProvider
 import com.geeksville.mesh.ui.theme.AppTheme
 import com.geeksville.mesh.util.AppUtil
+import com.geeksville.mesh.util.AppUtil.maybeGetStatusMessage
 import com.geeksville.mesh.util.ComposableUtil.rememberBooleanPreference
 import com.geeksville.mesh.util.IdentIkonGen
 import com.geeksville.mesh.util.toDistanceString
@@ -128,11 +132,11 @@ fun NodeItem(
     expanded: Boolean = false,
     currentTimeMillis: Long,
     isConnected: Boolean = false,
-    viewModel: UIViewModel = hiltViewModel()
+    nodeRegistry: Map<String, NodeRegistry>,
+    ourStatusMessage: String
 ) {
 
     val context = LocalContext.current
-    val nodeRegistry by viewModel.nodeRegistryMap.collectAsStateWithLifecycle()
 
     val removeCustomIconChatPrefs by rememberBooleanPreference(
         context.advancedPrefs,
@@ -180,6 +184,8 @@ fun NodeItem(
     val (detailsShown, showDetails) = remember { mutableStateOf(expanded) }
 
     val id = thatNode.user.id.ifEmpty { "???" }
+
+    val thatStatusMessage = thatNode.nodeStatus
 
     Card(
         modifier = Modifier
@@ -422,6 +428,10 @@ fun NodeItem(
                         )
                     }
                 }
+
+                maybeGetStatusMessage(ourStatusMessage, thatStatusMessage, isThisNode)?.let{
+                    StatusMessage(it, R.color.colorAnnotation, FontStyle.Italic)
+                }
             }
         }
     }
@@ -439,7 +449,9 @@ fun NodeInfoSimplePreview() {
             1,
             0,
             true,
-            currentTimeMillis = System.currentTimeMillis()
+            currentTimeMillis = System.currentTimeMillis(),
+            nodeRegistry = HashMap(),
+            ourStatusMessage =  "Hello"
         )
     }
 }
@@ -447,7 +459,7 @@ fun NodeInfoSimplePreview() {
 @Composable
 @Preview(
     showBackground = true,
-    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
 )
 fun NodeInfoPreview(
     @PreviewParameter(NodePreviewParameterProvider::class)
@@ -467,7 +479,9 @@ fun NodeInfoPreview(
                 distanceUnits = 1,
                 tempInFahrenheit = true,
                 expanded = false,
-                currentTimeMillis = System.currentTimeMillis()
+                currentTimeMillis = System.currentTimeMillis(),
+                nodeRegistry = HashMap(),
+                ourStatusMessage =  "Hello"
             )
             Text(
                 text = "Details Shown",
@@ -480,7 +494,9 @@ fun NodeInfoPreview(
                 distanceUnits = 1,
                 tempInFahrenheit = true,
                 expanded = true,
-                currentTimeMillis = System.currentTimeMillis()
+                currentTimeMillis = System.currentTimeMillis(),
+                nodeRegistry = HashMap(),
+                ourStatusMessage =  "Hello"
             )
         }
     }
@@ -620,24 +636,24 @@ fun PremiumChip(
                         Shader.TileMode.MIRROR
                     )
 
-                    val paintA = android.graphics.Paint().apply {
+                    val paintA = Paint().apply {
                         isAntiAlias = true
-                        style = android.graphics.Paint.Style.STROKE
+                        style = Paint.Style.STROKE
                         strokeWidth = 6.dp.toPx()
-                        maskFilter = android.graphics.BlurMaskFilter(
+                        maskFilter = BlurMaskFilter(
                             26f,
-                            android.graphics.BlurMaskFilter.Blur.NORMAL
+                            BlurMaskFilter.Blur.NORMAL
                         )
                         shader = shaderA
                     }
 
-                    val paintB = android.graphics.Paint().apply {
+                    val paintB = Paint().apply {
                         isAntiAlias = true
-                        style = android.graphics.Paint.Style.STROKE
+                        style = Paint.Style.STROKE
                         strokeWidth = 6.dp.toPx()
-                        maskFilter = android.graphics.BlurMaskFilter(
+                        maskFilter = BlurMaskFilter(
                             18f,
-                            android.graphics.BlurMaskFilter.Blur.NORMAL
+                            BlurMaskFilter.Blur.NORMAL
                         )
                         shader = shaderB
                     }
@@ -695,5 +711,32 @@ fun PremiumChip(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun StatusMessage(
+    statusMessage: String,
+    colorRes: Int,
+    fontStyle: FontStyle
+){
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 15.dp, bottom = 5.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.Notes,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = statusMessage,
+            fontSize = MaterialTheme.typography.button.fontSize,
+            maxLines = 2,
+            fontStyle = fontStyle,
+            color =  colorResource(colorRes),
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }

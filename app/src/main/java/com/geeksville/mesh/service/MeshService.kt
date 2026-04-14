@@ -421,6 +421,9 @@ class MeshService : Service(), Logging {
             Portnums.PortNum.WAYPOINT_APP_VALUE -> {
                 getString(R.string.waypoint_received, dataPacket.waypoint!!.name)
             }
+            Portnums.PortNum.NODE_STATUS_APP_VALUE ->{
+                "Status: ${dataPacket.statusMessageText}"
+            }
 
             else -> return
         }
@@ -807,6 +810,7 @@ class MeshService : Service(), Logging {
         Portnums.PortNum.TEXT_MESSAGE_APP_VALUE,
         Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE,
         Portnums.PortNum.WAYPOINT_APP_VALUE,
+        Portnums.PortNum.NODE_STATUS_APP_VALUE,
     )
 
     private fun rememberReaction(packet: MeshPacket) = serviceScope.handledLaunch {
@@ -929,6 +933,12 @@ class MeshService : Service(), Logging {
                 var traceRouteResponse: String? = null
 
                 when (data.portnumValue) {
+
+                    Portnums.PortNum.NODE_STATUS_APP_VALUE -> {
+                        val status = MeshProtos.StatusMessage.parseFrom(data.payload)
+                        handleReceivedNodeStatus(packet.from, status)
+                        rememberDataPacket(dataPacket)
+                    }
 
                     Portnums.PortNum.TEXT_MESSAGE_APP_VALUE,
                     Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE -> {
@@ -1262,6 +1272,10 @@ class MeshService : Service(), Logging {
                 it.setPosition(p, (defaultTime / 1000L).toInt())
             }
         }
+    }
+
+    private fun handleReceivedNodeStatus(fromNum: Int, s: MeshProtos.StatusMessage) {
+        updateNodeInfo(fromNum) { it.nodeStatus = s.status ?: "" }
     }
 
     // Update our DB of users based on someone sending out a Telemetry subpacket
@@ -1968,7 +1982,16 @@ class MeshService : Service(), Logging {
             it.isFavorite = info.isFavorite
             it.isIgnored = info.isIgnored
             it.role = info.user.role.name
+            it.nodeStatus = maybeKeepStatusMessage(info.num)
         }
+    }
+
+    private fun maybeKeepStatusMessage(nodeNum: Int) : String? {
+        val currentNodeInfo = radioConfigRepository.nodeDBbyNum.value[nodeNum]
+        return if (currentNodeInfo != null
+            && currentNodeInfo.nodeStatus?.isBlank() == false){
+            currentNodeInfo.nodeStatus
+        } else null
     }
 
     private fun handleNodeInfo(info: MeshProtos.NodeInfo) {

@@ -105,6 +105,7 @@ import com.geeksville.mesh.ui.components.config.RangeTestConfigScreen
 import com.geeksville.mesh.ui.components.config.RemoteHardwareConfigScreen
 import com.geeksville.mesh.ui.components.config.SecurityConfigScreen
 import com.geeksville.mesh.ui.components.config.SerialConfigScreen
+import com.geeksville.mesh.ui.components.config.StatusMessageConfigScreen
 import com.geeksville.mesh.ui.components.config.StoreForwardConfigScreen
 import com.geeksville.mesh.ui.components.config.TelemetryConfigScreen
 import com.geeksville.mesh.ui.components.config.TrafficManagementConfigScreen
@@ -254,6 +255,9 @@ sealed interface Route {
 
     @Serializable
     data object TrafficManagement : Route
+
+    @Serializable
+    data object StatusMessage : Route
 
     @Serializable
     data object AmbientLighting : Route
@@ -413,6 +417,13 @@ enum class ModuleRoute(
         Route.Paxcounter,
         Icons.Default.PermScanWifi,
         12
+    ),
+
+    STATUS_MESSAGE(
+        "Status Message",
+        Route.StatusMessage,
+        Icons.AutoMirrored.Filled.Message,
+        13,
     ),
 
     TRAFFIC_MANAGEMENT(
@@ -613,6 +624,10 @@ fun NavGraph(
         composable<Route.TrafficManagement> {
             val parentEntry = remember { navController.getBackStackEntry<Route.RadioConfig>() }
             TrafficManagementConfigScreen(hiltViewModel<RadioConfigViewModel>(parentEntry))
+        }
+        composable<Route.StatusMessage> {
+            val parentEntry = remember { navController.getBackStackEntry<Route.RadioConfig>() }
+            StatusMessageConfigScreen(hiltViewModel<RadioConfigViewModel>(parentEntry))
         }
     }
 }

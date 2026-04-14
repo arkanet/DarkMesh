@@ -53,6 +53,7 @@ data class Node(
     val powerMetrics: PowerMetrics = PowerMetrics.getDefaultInstance(),
     val paxcounter: PaxcountProtos.Paxcount = PaxcountProtos.Paxcount.getDefaultInstance(),
     val role: String? = "",
+    val nodeStatus: String? = null,
 
     //liteNode useful for nodeRegistry
     val liteNodeId: String? = null,

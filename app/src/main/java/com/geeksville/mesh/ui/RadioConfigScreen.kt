@@ -90,15 +90,27 @@ fun RadioConfigScreen(
 
     val firmwareVersion = state.metadata?.firmwareVersion
     val capabilities = remember(firmwareVersion) { Capabilities(firmwareVersion) }
-    var showFwDialog by remember { mutableStateOf(false) }
+    var showTrafficCompatDialog by remember { mutableStateOf(false) }
+    var showStatusMessageCompatDialog by remember { mutableStateOf(false) }
 
-    if(showFwDialog){
+    if(showTrafficCompatDialog){
         SimpleAlertDialog(
             title = R.string.fw_mismatch,
             text = "This feature is available for FW ver. >= 2.7.20\n" +
                     "You are currently using $firmwareVersion",
             onDismiss = {
-                showFwDialog = false
+                showTrafficCompatDialog = false
+            }
+        )
+    }
+
+    if(showStatusMessageCompatDialog){
+        SimpleAlertDialog(
+            title = R.string.fw_mismatch,
+            text = "This feature is available for FW ver. >= 2.7.17\n" +
+                    "You are currently using $firmwareVersion",
+            onDismiss = {
+                showStatusMessageCompatDialog = false
             }
         )
     }
@@ -175,7 +187,16 @@ fun RadioConfigScreen(
             if (route == ModuleRoute.TRAFFIC_MANAGEMENT &&
                 !capabilities.supportsTrafficManagementConfig
             ) {
-                showFwDialog = true
+                showTrafficCompatDialog = true
+            } else {
+                isWaiting = true
+                viewModel.setResponseStateLoading(route)
+            }
+
+            if (route == ModuleRoute.STATUS_MESSAGE &&
+                !capabilities.supportsStatusMessage
+            ) {
+                showStatusMessageCompatDialog = true
             } else {
                 isWaiting = true
                 viewModel.setResponseStateLoading(route)

@@ -191,8 +191,9 @@ data class NodeInfo(
     var deviceMetrics: DeviceMetrics? = null,
     var channel: Int = 0,
     var environmentMetrics: EnvironmentMetrics? = null,
-    var hopsAway: Int = 0
-) : Parcelable {
+    var hopsAway: Int = 0,
+    var nodeStatus: String? = null,
+    ) : Parcelable {
 
     val colors: Pair<Int, Int>
         get() { // returns foreground and background @ColorInt for each 'num'

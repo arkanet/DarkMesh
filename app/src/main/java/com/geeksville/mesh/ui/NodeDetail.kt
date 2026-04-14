@@ -45,6 +45,7 @@ import androidx.compose.material.Card
 import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.ContentAlpha
 import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
@@ -53,6 +54,7 @@ import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ChargingStation
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Height
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyOff
@@ -88,6 +90,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.AnnotatedString
@@ -108,6 +111,7 @@ import com.geeksville.mesh.ui.components.PreferenceCategory
 import com.geeksville.mesh.ui.preview.NodePreviewParameterProvider
 import com.geeksville.mesh.ui.share.SharedContactDialog
 import com.geeksville.mesh.ui.theme.AppTheme
+import com.geeksville.mesh.util.AppUtil.maybeGetStatusMessage
 import com.geeksville.mesh.util.DistanceUnit
 import com.geeksville.mesh.util.IdentIkonGen
 import com.geeksville.mesh.util.formatAgo
@@ -124,19 +128,24 @@ fun NodeDetailScreen(
     onNavigate: (Any) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val ourStatusMessage by uiViewModel.statusMessage.collectAsStateWithLifecycle()
 
     if (state.node != null) {
         val node = state.node ?: return
+        val ourNodeNum = uiViewModel.ourNodeInfo.collectAsStateWithLifecycle().value
 
         val nodeRegistryMap by uiViewModel.nodeRegistryMap.collectAsState()
         val nodeRegistry = nodeRegistryMap[node.user.id]
 
         NodeDetailList(
             node = node,
+            isThisNode = ourNodeNum?.num == node.num,
             metricsState = state,
             onNavigate = onNavigate,
             modifier = modifier,
             nodeRegistry = nodeRegistry,
+            ourStatus = ourStatusMessage,
+            onStatusClear = { uiViewModel.clearNodeStatus(node.num)}
         )
     } else {
         Box(
@@ -152,10 +161,20 @@ fun NodeDetailScreen(
 private fun NodeDetailList(
     modifier: Modifier = Modifier,
     node: Node,
+    isThisNode: Boolean,
+    ourStatus: String,
     metricsState: MetricsState,
     nodeRegistry: NodeRegistry?,
+    onStatusClear:(Any) -> Unit = {},
     onNavigate: (Any) -> Unit = {},
 ) {
+
+    val statusMessage = maybeGetStatusMessage(
+        ourStatus,
+        node.nodeStatus,
+        isThisNode
+    )
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp),
@@ -186,6 +205,7 @@ private fun NodeDetailList(
                 }
             }
         }
+
         if (metricsState.deviceHardware != null) {
             item {
                 PreferenceCategory("Device") {
@@ -193,6 +213,39 @@ private fun NodeDetailList(
                 }
             }
         }
+
+        item {
+            if(statusMessage != null){
+                val clipboardManager = LocalClipboardManager.current
+                PreferenceCategory("Status Message") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+
+                        Text(
+                            text = statusMessage,
+                            color = colorResource(R.color.colorAnnotation),
+                            modifier = Modifier.weight(1f)  .clickable {
+                                clipboardManager.setText(AnnotatedString(statusMessage))
+                            }
+                        )
+
+                        if (!isThisNode) {
+                            IconButton(
+                                onClick = { onStatusClear(node.num) }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Clear status message"
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             PreferenceCategory("Details") {
                 NodeDetailsContent(node)
@@ -696,7 +749,9 @@ private fun NodeDetailsPreview(
         NodeDetailList(
             node = node,
             metricsState = MetricsState.Empty,
-            nodeRegistry = null
+            nodeRegistry = null,
+            isThisNode = true,
+            ourStatus = "Hello there im writing you a simple status message!"
         )
     }
 }

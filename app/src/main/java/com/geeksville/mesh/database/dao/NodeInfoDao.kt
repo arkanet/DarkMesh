@@ -141,6 +141,9 @@ interface NodeInfoDao {
     @Query("DELETE FROM nodes WHERE num=:num")
     fun deleteNode(num: Int)
 
+    @Query("UPDATE nodes SET node_status=NULL WHERE num=:num")
+    fun clearNodeStatus(num: Int)
+
     @Upsert
     fun upsert(meta: MetadataEntity)
 

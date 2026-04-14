@@ -162,6 +162,8 @@ fun NodesScreen(
 
     val currentTimeMillis = rememberTimeTickWithLifecycle()
     val connectionState by model.connectionState.collectAsStateWithLifecycle()
+    val nodeRegistry by model.nodeRegistryMap.collectAsStateWithLifecycle()
+    val ourStatusMessage by model.statusMessage.collectAsStateWithLifecycle()
 
 //    //filters nodes with same long name as ours which can occur when switching to SENSOR MODE
 //    //fixme maybe set arbitrary randomized name when db init occurs in FW!
@@ -228,6 +230,8 @@ fun NodesScreen(
                 expanded = state.showDetails,
                 currentTimeMillis = currentTimeMillis,
                 isConnected = connectionState.isConnected(),
+                nodeRegistry = nodeRegistry,
+                ourStatusMessage = ourStatusMessage
             )
         }
     }

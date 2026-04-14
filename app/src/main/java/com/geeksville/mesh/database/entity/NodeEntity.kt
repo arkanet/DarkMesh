@@ -58,7 +58,8 @@ data class NodeWithRelations(
             environmentMetrics = environmentTelemetry.environmentMetrics,
             powerMetrics = powerTelemetry.powerMetrics,
             paxcounter = paxcounter,
-            role = role
+            role = role,
+            nodeStatus = nodeStatus,
         )
     }
 
@@ -79,7 +80,8 @@ data class NodeWithRelations(
             environmentTelemetry = environmentTelemetry,
             powerTelemetry = powerTelemetry,
             paxcounter = paxcounter,
-            role = role
+            role = role,
+            nodeStatus = nodeStatus,
         )
     }
 }
@@ -146,7 +148,10 @@ data class NodeEntity(
     var paxcounter: PaxcountProtos.Paxcount = PaxcountProtos.Paxcount.getDefaultInstance(),
 
     @ColumnInfo(name = "role")
-    var role: String? = null
+    var role: String? = null,
+
+    @ColumnInfo(name = "node_status")
+    var nodeStatus: String? = null,
 
 ) {
     val deviceMetrics: TelemetryProtos.DeviceMetrics
@@ -225,5 +230,6 @@ data class NodeEntity(
             iaq = environmentMetrics.iaq,
         ),
         hopsAway = hopsAway,
+        nodeStatus = nodeStatus,
     )
 }
