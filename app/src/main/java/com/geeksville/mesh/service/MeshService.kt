@@ -415,19 +415,22 @@ class MeshService : Service(), Logging {
     }
 
     private fun updateMessageNotification(contactKey: String, dataPacket: DataPacket) {
-        val message: String = when (dataPacket.dataType) {
-            Portnums.PortNum.TEXT_MESSAGE_APP_VALUE,
-            Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE -> dataPacket.text!!
-            Portnums.PortNum.WAYPOINT_APP_VALUE -> {
-                getString(R.string.waypoint_received, dataPacket.waypoint!!.name)
+        try {
+            val message: String = when (dataPacket.dataType) {
+                Portnums.PortNum.TEXT_MESSAGE_APP_VALUE,
+                Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE -> dataPacket.text!!
+                Portnums.PortNum.WAYPOINT_APP_VALUE -> {
+                    getString(R.string.waypoint_received, dataPacket.waypoint!!.name)
+                }
+                Portnums.PortNum.NODE_STATUS_APP_VALUE ->{
+                    "Status: ${dataPacket.statusMessageText}"
+                }
+                else -> return
             }
-            Portnums.PortNum.NODE_STATUS_APP_VALUE ->{
-                "Status: ${dataPacket.statusMessageText}"
-            }
-
-            else -> return
+            serviceNotifications.updateMessageNotification(contactKey, getSenderName(dataPacket), message)
+        } catch (t: Throwable){
+            warn("Failed to update notification! ${t.message}")
         }
-        serviceNotifications.updateMessageNotification(contactKey, getSenderName(dataPacket), message)
     }
 
     override fun onCreate() {

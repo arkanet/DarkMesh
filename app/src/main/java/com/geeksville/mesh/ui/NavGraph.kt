@@ -116,6 +116,8 @@ import com.google.accompanist.themeadapter.appcompat.AppCompatTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.serialization.Serializable
 import org.meshtastic.proto.MeshProtos.DeviceMetadata
+import java.util.EnumSet
+
 
 internal fun FragmentManager.navigateToNavGraph(
     destNum: Int? = null,
@@ -370,8 +372,15 @@ enum class ModuleRoute(
     }
 }
 
+val EXCLUDED_MODULES_UI: MutableSet<ModuleRoute> = EnumSet.of(
+    ModuleRoute.STATUS_MESSAGE,
+    ModuleRoute.TRAFFIC_MANAGEMENT
+)
+
 fun ModuleRoute.isSupportedBy(metadata: DeviceMetadata?): Boolean {
-    if (metadata == null) return true
+    if (metadata == null){
+        return !EXCLUDED_MODULES_UI.contains(this)
+    }
 
     val notExcluded = (metadata.excludedModules and bitfield) == 0
 
