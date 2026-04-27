@@ -77,6 +77,7 @@ import com.geeksville.mesh.service.DistressService.PREF_STRESSTEST_ENABLED
 import com.geeksville.mesh.service.GlobalRadioMesh.autoDeleteMap
 import com.geeksville.mesh.service.GlobalRadioMesh.ourTracerouteRequests
 import com.geeksville.mesh.ui.SKIP_MQTT_ENTIRELY
+import com.geeksville.mesh.ui.SHOW_UNREQUESTED_NEIGHBOR_DISCOVERY_REPORTS
 import com.geeksville.mesh.ui.TRACE_MAX_PRIORITY_PREF
 import com.geeksville.mesh.util.AppUtil
 import com.geeksville.mesh.util.AppUtil.hexIdToNodeNum
@@ -1130,9 +1131,17 @@ class MeshService : Service(), Logging {
                         //persistNeighborDiscoveryNodes(packet)
 
                         if (!huntingPrefs.getBoolean(UserPrefs.Hunting.BACKGROUND_HUNT, false)) {
-                            radioConfigRepository.setNeighborDiscoveryResponse(
-                                packet.getNeighborDiscoveryResult { nodeNum -> nodeDBbyNodeNum[nodeNum]?.user }
+                            val showUnrequestedNeighborDiscoveryReports = advancedPrefs.getBoolean(
+                                SHOW_UNREQUESTED_NEIGHBOR_DISCOVERY_REPORTS,
+                                false
                             )
+                            val isExplicitNeighborDiscoveryReply = packet.decoded.requestId != 0
+
+                            if (showUnrequestedNeighborDiscoveryReports || isExplicitNeighborDiscoveryReply) {
+                                radioConfigRepository.setNeighborDiscoveryResponse(
+                                    packet.getNeighborDiscoveryResult { nodeNum -> nodeDBbyNodeNum[nodeNum]?.user }
+                                )
+                            }
                         }
                     }
 

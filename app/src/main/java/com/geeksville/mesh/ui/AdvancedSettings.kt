@@ -34,6 +34,7 @@ const val USE_COMPRESSION_MESSAGES = "use_compression_messages"
 const val COMPRESSED_CHATS_PREFS = "compressed_chats_prefs"
 const val SHOW_AIRUTIL_CHUTIL = "show_airutil_chutil"
 const val SHOW_AIRUTIL_CHUTIL_ALL_NODES = "show_airutil_chutil_all_nodes"
+const val SHOW_UNREQUESTED_NEIGHBOR_DISCOVERY_REPORTS = "show_unrequested_neighbor_discovery_reports"
 
 object AutoDeleteConfig {
 
@@ -93,6 +94,9 @@ class AdvancedSettings : AppCompatActivity() {
         val showAirUtilChUtilAllNodesSwitch =
             findViewById<SwitchCompat>(R.id.showAirUtilChUtilAllNodesSwitch)
 
+        val showUnrequestedNeighborDiscoveryReportsSwitch =
+            findViewById<SwitchCompat>(R.id.showUnrequestedNeighborDiscoveryReportsSwitch)
+
         val autoDeleteTimeSpinner = findViewById<Spinner>(R.id.autoDeleteTiming)
 
         val autoDeleteNodesHoursAdapter = ArrayAdapter(
@@ -112,6 +116,10 @@ class AdvancedSettings : AppCompatActivity() {
         val useMessageCompressionPrefs = advancedPrefs.getBoolean(USE_COMPRESSION_MESSAGES, false)
         val showAirUtilChUtilPrefs = advancedPrefs.getBoolean(SHOW_AIRUTIL_CHUTIL, false)
         val showAirUtilChUtilAllNodesPrefs = advancedPrefs.getBoolean(SHOW_AIRUTIL_CHUTIL_ALL_NODES, false)
+        val showUnrequestedNeighborDiscoveryReportsPref = advancedPrefs.getBoolean(
+            SHOW_UNREQUESTED_NEIGHBOR_DISCOVERY_REPORTS,
+            false
+        )
 
         val autoDeleteTimeHours = advancedPrefs.getInt(
             AUTO_DELETE_TIME_HOURS,
@@ -133,6 +141,7 @@ class AdvancedSettings : AppCompatActivity() {
         useCompressionSwitch.isChecked = useMessageCompressionPrefs
         showAirUtilChUtilSwitch.isChecked = showAirUtilChUtilPrefs
         showAirUtilChUtilAllNodesSwitch.isChecked = showAirUtilChUtilAllNodesPrefs
+        showUnrequestedNeighborDiscoveryReportsSwitch.isChecked = showUnrequestedNeighborDiscoveryReportsPref
 
         fun updateAirUtilChUtilSectionState() {
             val enabled = showAirUtilChUtilSwitch.isChecked
@@ -160,6 +169,10 @@ class AdvancedSettings : AppCompatActivity() {
             updateAirUtilChUtilSectionState()
         }
         setSwitchListener(showAirUtilChUtilAllNodesSwitch, SHOW_AIRUTIL_CHUTIL_ALL_NODES)
+        setSwitchListener(
+            showUnrequestedNeighborDiscoveryReportsSwitch,
+            SHOW_UNREQUESTED_NEIGHBOR_DISCOVERY_REPORTS
+        )
 
         autoDeleteTimeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
