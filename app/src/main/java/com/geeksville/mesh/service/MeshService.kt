@@ -76,6 +76,7 @@ import com.geeksville.mesh.repository.radio.RadioServiceConnectionState
 import com.geeksville.mesh.service.DistressService.PREF_STRESSTEST_ENABLED
 import com.geeksville.mesh.service.GlobalRadioMesh.autoDeleteMap
 import com.geeksville.mesh.service.GlobalRadioMesh.ourTracerouteRequests
+import com.geeksville.mesh.ui.SHOW_ALL_NEIGHBOR_DISCOVERY_REQUESTS
 import com.geeksville.mesh.ui.SKIP_MQTT_ENTIRELY
 import com.geeksville.mesh.ui.TRACE_MAX_PRIORITY_PREF
 import com.geeksville.mesh.util.AppUtil
@@ -1145,7 +1146,17 @@ class MeshService : Service(), Logging {
                         //fixme, overwrites existing nodes on our db
                         //persistNeighborDiscoveryNodes(packet)
 
-                        if (!huntingPrefs.getBoolean(UserPrefs.Hunting.BACKGROUND_HUNT, false)) {
+                        val showAllNeighborDiscoveryRequests = advancedPrefs.getBoolean(
+                            SHOW_ALL_NEIGHBOR_DISCOVERY_REQUESTS,
+                            false
+                        )
+                        val isBackgroundHunting =
+                            huntingPrefs.getBoolean(UserPrefs.Hunting.BACKGROUND_HUNT, false)
+                        val isExplicitNeighborDiscoveryReply = packet.decoded.requestId != 0
+
+                        if (showAllNeighborDiscoveryRequests ||
+                            (!isBackgroundHunting && isExplicitNeighborDiscoveryReply)
+                        ) {
                             radioConfigRepository.setNeighborDiscoveryResponse(
                                 packet.getNeighborDiscoveryResult { nodeNum -> nodeDBbyNodeNum[nodeNum]?.user }
                             )
