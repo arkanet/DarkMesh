@@ -64,6 +64,7 @@ import com.geeksville.mesh.model.NeighborDiscoveryNode
 import com.geeksville.mesh.model.Node
 import com.geeksville.mesh.model.RelayEvent
 import com.geeksville.mesh.model.UIViewModel.Companion.getPreferences
+import com.geeksville.mesh.model.getStringResFrom
 import com.geeksville.mesh.model.getNeighborDiscoveryResult
 import com.geeksville.mesh.model.getTracerouteResponse
 import com.geeksville.mesh.prefs.UserPrefs
@@ -140,6 +141,25 @@ sealed class ServiceAction {
     data class ImportContact(val contact: AdminProtos.SharedContact, val dbImport: Boolean) : ServiceAction()
 }
 
+private data class NeighborDiscoveryPreflight(
+    val destNum: Int,
+    val future: CompletableFuture<NeighborDiscoveryPreflightResult>,
+)
+
+private sealed class NeighborDiscoveryPreflightResult {
+    object Success : NeighborDiscoveryPreflightResult()
+
+    data class RoutingFailure(val routingError: Int) : NeighborDiscoveryPreflightResult()
+
+    data class UnexpectedSender(val fromNodeNum: Int, val expectedDestNum: Int) : NeighborDiscoveryPreflightResult()
+
+    object SessionKeyUnavailable : NeighborDiscoveryPreflightResult()
+
+    object TimedOut : NeighborDiscoveryPreflightResult()
+
+    object SendFailed : NeighborDiscoveryPreflightResult()
+}
+
 /**
  * Handles all the communication with android apps.  Also keeps an internal model
  * of the network state.
@@ -180,6 +200,7 @@ class MeshService : Service(), Logging {
     private lateinit var huntingPrefs: SharedPreferences
 
     private val tracerouteStartTimes = ConcurrentHashMap<Int, Long>()
+    private val neighborDiscoveryPreflights = ConcurrentHashMap<Int, NeighborDiscoveryPreflight>()
 
     private val tracerouteExpirationMs = 90_000L
 
@@ -806,11 +827,12 @@ class MeshService : Service(), Logging {
     private fun MeshPacket.Builder.buildAdminPacket(
         id: Int = generatePacketId(), // always assign a packet ID if we didn't already have one
         wantResponse: Boolean = false,
+        channel: Int = adminChannelIndex,
         initFn: AdminProtos.AdminMessage.Builder.() -> Unit
     ): MeshPacket = buildMeshPacket(
         id = id,
         wantAck = true,
-        channel = adminChannelIndex,
+        channel = channel,
         priority = MeshPacket.Priority.RELIABLE
     ) {
         this.wantResponse = wantResponse
@@ -1083,13 +1105,20 @@ class MeshService : Service(), Logging {
                             radioConfigRepository.setErrorMessage(getString(R.string.error_duty_cycle))
                         }
 
-                        handleAckNak(packet, data.requestId, fromId, u.errorReasonValue)
+                        neighborDiscoveryPreflights[data.requestId]?.let { preflight ->
+                            if (u.errorReason != MeshProtos.Routing.Error.NONE) {
+                                neighborDiscoveryPreflights.remove(data.requestId)
+                                preflight.future.complete(
+                                    NeighborDiscoveryPreflightResult.RoutingFailure(u.errorReasonValue)
+                                )
+                            }
+                        } ?: handleAckNak(packet, data.requestId, fromId, u.errorReasonValue)
                         queueResponse.remove(data.requestId)?.complete(true)
                     }
 
                     Portnums.PortNum.ADMIN_APP_VALUE -> {
                         val u = AdminProtos.AdminMessage.parseFrom(data.payload)
-                        handleReceivedAdmin(packet.from, u)
+                        handleReceivedAdmin(packet.from, data.requestId, u)
                         shouldBroadcast = false
                     }
 
@@ -1204,7 +1233,68 @@ class MeshService : Service(), Logging {
         }
     }
 
-    private fun handleReceivedAdmin(fromNodeNum: Int, a: AdminProtos.AdminMessage) {
+    private fun neighborDiscoveryPreflightErrorMessage(result: NeighborDiscoveryPreflightResult): String = when (result) {
+        NeighborDiscoveryPreflightResult.Success -> ""
+        is NeighborDiscoveryPreflightResult.RoutingFailure -> getString(
+            R.string.neighbor_discovery_preflight_failed,
+            getString(getStringResFrom(result.routingError)),
+        )
+
+        is NeighborDiscoveryPreflightResult.UnexpectedSender -> getString(
+            R.string.neighbor_discovery_preflight_unexpected_sender,
+            result.fromNodeNum.toUInt().toString(),
+            result.expectedDestNum.toUInt().toString(),
+        )
+
+        NeighborDiscoveryPreflightResult.SessionKeyUnavailable ->
+            getString(R.string.neighbor_discovery_preflight_session_key_unavailable)
+
+        NeighborDiscoveryPreflightResult.TimedOut ->
+            getString(R.string.neighbor_discovery_preflight_timed_out)
+
+        NeighborDiscoveryPreflightResult.SendFailed ->
+            getString(R.string.neighbor_discovery_preflight_send_failed)
+    }
+
+    private fun requestNeighborDiscoveryPreflight(destNum: Int): NeighborDiscoveryPreflightResult {
+        if (destNum == myNodeNum) return NeighborDiscoveryPreflightResult.Success
+
+        val preflightId = generatePacketId()
+        val preflight = NeighborDiscoveryPreflight(
+            destNum = destNum,
+            future = CompletableFuture(),
+        )
+        neighborDiscoveryPreflights[preflightId] = preflight
+
+        return try {
+            val adminPacket = newMeshPacketTo(destNum).buildAdminPacket(
+                id = preflightId,
+                wantResponse = true,
+                channel = newMeshPacketTo(destNum).neighborDiscoveryChannelIndex,
+            ) {
+                getDeviceMetadataRequest = true
+            }
+
+            val sendFuture = sendPacket(adminPacket)
+            if (sendFuture.isDone && !sendFuture.get()) {
+                NeighborDiscoveryPreflightResult.SendFailed
+            } else {
+                try {
+                    preflight.future.get(15, TimeUnit.SECONDS)
+                } catch (_: TimeoutException) {
+                    if (sendFuture.isDone && !sendFuture.get()) {
+                        NeighborDiscoveryPreflightResult.SendFailed
+                    } else {
+                        NeighborDiscoveryPreflightResult.TimedOut
+                    }
+                }
+            }
+        } finally {
+            neighborDiscoveryPreflights.remove(preflightId)
+        }
+    }
+
+    private fun handleReceivedAdmin(fromNodeNum: Int, requestId: Int, a: AdminProtos.AdminMessage) {
         when (a.payloadVariantCase) {
             AdminProtos.AdminMessage.PayloadVariantCase.GET_CONFIG_RESPONSE -> {
                 if (fromNodeNum == myNodeNum) {
@@ -1232,6 +1322,20 @@ class MeshService : Service(), Logging {
                 debug("Admin: received DeviceMetadata from $fromNodeNum")
                 serviceScope.handledLaunch {
                     radioConfigRepository.insertMetadata(fromNodeNum, a.getDeviceMetadataResponse)
+                }
+
+                neighborDiscoveryPreflights.remove(requestId)?.let { preflight ->
+                    preflight.future.complete(
+                        when {
+                            preflight.destNum != fromNodeNum -> NeighborDiscoveryPreflightResult.UnexpectedSender(
+                                fromNodeNum = fromNodeNum,
+                                expectedDestNum = preflight.destNum,
+                            )
+
+                            a.sessionPasskey.isEmpty -> NeighborDiscoveryPreflightResult.SessionKeyUnavailable
+                            else -> NeighborDiscoveryPreflightResult.Success
+                        }
+                    )
                 }
             }
 
@@ -2786,6 +2890,13 @@ class MeshService : Service(), Logging {
         }
 
         override fun requestNeighborInfo(requestId: Int, destNum: Int) = toRemoteExceptions {
+            when (val preflightResult = requestNeighborDiscoveryPreflight(destNum)) {
+                NeighborDiscoveryPreflightResult.Success -> Unit
+                else -> throw RemoteException(
+                    neighborDiscoveryPreflightErrorMessage(preflightResult)
+                )
+            }
+
             val neighborPacket = newMeshPacketTo(destNum).buildMeshPacket(
                 wantAck = true,
                 id = requestId,

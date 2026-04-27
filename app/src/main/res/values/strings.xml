@@ -48,6 +48,11 @@
     <string name="routing_error_pki_unknown_pubkey">Unknown Public Key</string>
     <string name="routing_error_admin_bad_session_key">Bad session key</string>
     <string name="routing_error_admin_public_key_unauthorized">Public Key unauthorized</string>
+    <string name="neighbor_discovery_preflight_failed">Neighbor Discovery preflight failed: %1$s</string>
+    <string name="neighbor_discovery_preflight_timed_out">Neighbor Discovery preflight timed out while waiting for admin confirmation</string>
+    <string name="neighbor_discovery_preflight_session_key_unavailable">Neighbor Discovery preflight failed: remote admin session key unavailable</string>
+    <string name="neighbor_discovery_preflight_send_failed">Neighbor Discovery preflight failed before the admin request could be sent</string>
+    <string name="neighbor_discovery_preflight_unexpected_sender">Neighbor Discovery preflight failed: unexpected sender %1$s instead of %2$s</string>
 
     <string name="role_client">App connected or standalone messaging device.</string>
     <string name="role_client_mute">Device that does not forward packets from other devices.</string>

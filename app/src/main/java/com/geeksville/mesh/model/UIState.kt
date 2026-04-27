@@ -682,12 +682,16 @@ class UIViewModel @Inject constructor(
     fun requestNeighborDiscovery(destNum: Int) {
         info("Requesting neighbor discovery for '$destNum'")
         pendingNeighborDiscoveryGpsRecovery.value = null
-        try {
-            val packetId = meshService?.packetId ?: return
-            meshService?.requestNeighborInfo(packetId, destNum)
-        } catch (ex: RemoteException) {
-            errormsg("Request neighbor discovery error: ${ex.message}")
-            showSnackbar(ex.message ?: "Neighbor Discovery request failed")
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val packetId = meshService?.packetId ?: return@launch
+                meshService?.requestNeighborInfo(packetId, destNum)
+            } catch (ex: RemoteException) {
+                errormsg("Request neighbor discovery error: ${ex.message}")
+                withContext(Dispatchers.Main) {
+                    showSnackbar(ex.message ?: "Neighbor Discovery request failed")
+                }
+            }
         }
     }
 
