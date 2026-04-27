@@ -687,6 +687,7 @@ class UIViewModel @Inject constructor(
             meshService?.requestNeighborInfo(packetId, destNum)
         } catch (ex: RemoteException) {
             errormsg("Request neighbor discovery error: ${ex.message}")
+            showSnackbar(ex.message ?: "Neighbor Discovery request failed")
         }
     }
 

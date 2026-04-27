@@ -735,6 +735,22 @@ class MeshService : Service(), Logging {
                 .coerceAtLeast(0)
         }
 
+    private val MeshPacket.Builder.neighborDiscoveryChannelIndex: Int
+        get() = when {
+            myNodeNum == to -> 0
+            nodeDBbyNodeNum[myNodeNum]?.hasPKC == true && nodeDBbyNodeNum[to]?.hasPKC == true ->
+                DataPacket.PKC_CHANNEL_INDEX
+
+            else -> channelSet.settingsList
+                .indexOfFirst { it.name.equals("admin", ignoreCase = true) }
+                .takeIf { it >= 0 }
+                ?: if (localConfig.security.adminChannelEnabled) {
+                    0
+                } else {
+                    throw IllegalStateException("Neighbor Discovery requires remote admin access")
+                }
+        }
+
     // Generate a new mesh packet builder with our node as the sender, and the specified node num
     private fun newMeshPacketTo(idNum: Int) = MeshPacket.newBuilder().apply {
         if (myNodeInfo == null) {
@@ -2762,7 +2778,7 @@ class MeshService : Service(), Logging {
             val neighborPacket = newMeshPacketTo(destNum).buildMeshPacket(
                 wantAck = true,
                 id = requestId,
-                channel = nodeDBbyNodeNum[destNum]?.channel ?: 0,
+                channel = newMeshPacketTo(destNum).neighborDiscoveryChannelIndex,
             ) {
                 portnumValue = Portnums.PortNum.NEIGHBORINFO_APP_VALUE
                 wantResponse = true
