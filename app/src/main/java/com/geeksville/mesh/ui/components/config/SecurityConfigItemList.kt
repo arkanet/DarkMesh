@@ -17,10 +17,17 @@
 
 package com.geeksville.mesh.ui.components.config
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.material.Button
 import androidx.compose.material.Divider
+import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.geeksville.mesh.model.RadioConfigViewModel
@@ -37,6 +45,8 @@ import com.geeksville.mesh.ui.components.EditListPreference
 import com.geeksville.mesh.ui.components.PreferenceCategory
 import com.geeksville.mesh.ui.components.PreferenceFooter
 import com.geeksville.mesh.ui.components.SwitchPreference
+import com.geeksville.mesh.util.Crypto
+import com.google.protobuf.ByteString
 import org.meshtastic.proto.ConfigProtos.Config.SecurityConfig
 import org.meshtastic.proto.config
 import org.meshtastic.proto.copy
@@ -57,6 +67,15 @@ fun SecurityConfigScreen(
     SecurityConfigItemList(
         securityConfig = state.radioConfig.security,
         enabled = state.connected,
+        onSendKeys = { publicKey, privateKey ->
+            val config = config {
+                security = state.radioConfig.security.copy {
+                    this.publicKey = publicKey
+                    this.privateKey = privateKey
+                }
+            }
+            viewModel.setConfig(config)
+        },
         onConfirm = { securityInput ->
             val config = config { security = securityInput }
             viewModel.setConfig(config)
@@ -69,10 +88,16 @@ fun SecurityConfigScreen(
 fun SecurityConfigItemList(
     securityConfig: SecurityConfig,
     enabled: Boolean,
+    onSendKeys: (publicKey: ByteString, privateKey: ByteString) -> Unit,
     onConfirm: (config: SecurityConfig) -> Unit,
 ) {
     val focusManager = LocalFocusManager.current
-    var securityInput by rememberSaveable { mutableStateOf(securityConfig) }
+    var securityInput by rememberSaveable(securityConfig) { mutableStateOf(securityConfig) }
+    val hasPendingKeyPair =
+        securityInput.publicKey.size() == 32 &&
+            securityInput.privateKey.size() == 32 &&
+            (securityInput.publicKey != securityConfig.publicKey ||
+                securityInput.privateKey != securityConfig.privateKey)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize()
@@ -105,6 +130,42 @@ fun SecurityConfigItemList(
                     }
                 },
             )
+        }
+
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .height(48.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    onClick = {
+                        focusManager.clearFocus()
+                        val keyPair = Crypto.generatePkiKeyPair()
+                        securityInput = securityInput.copy {
+                            publicKey = keyPair.publicKey
+                            privateKey = keyPair.privateKey
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = enabled,
+                ) {
+                    Text(text = "Regen Keys")
+                }
+
+                Button(
+                    onClick = {
+                        focusManager.clearFocus()
+                        onSendKeys(securityInput.publicKey, securityInput.privateKey)
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = enabled && hasPendingKeyPair,
+                ) {
+                    Text(text = "Send")
+                }
+            }
         }
 
         item {
@@ -183,6 +244,7 @@ private fun SecurityConfigPreview() {
     SecurityConfigItemList(
         securityConfig = SecurityConfig.getDefaultInstance(),
         enabled = true,
+        onSendKeys = { _, _ -> },
         onConfirm = {},
     )
 }
