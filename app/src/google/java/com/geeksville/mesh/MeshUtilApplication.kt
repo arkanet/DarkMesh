@@ -25,6 +25,7 @@ import com.geeksville.mesh.android.GeeksvilleApplication
 import com.geeksville.mesh.android.Logging
 import com.geeksville.mesh.util.Exceptions
 import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
 import com.google.firebase.crashlytics.crashlytics
 import dagger.hilt.android.HiltAndroidApp
 
@@ -38,7 +39,7 @@ class MeshUtilApplication : GeeksvilleApplication() {
 
         // We default to off in the manifest - we turn on here if the user approves
         // leave off when running in the debugger
-        if (!isEmulator && (!BuildConfig.DEBUG || !Debug.isDebuggerConnected())) {
+        if (shouldConfigureCrashlytics()) {
             val crashlytics = Firebase.crashlytics
             crashlytics.setCrashlyticsCollectionEnabled(isAnalyticsAllowed)
             crashlytics.setCustomKey("debug_build", BuildConfig.DEBUG)
@@ -70,5 +71,26 @@ class MeshUtilApplication : GeeksvilleApplication() {
                 sendCrashReports() // Send the new report
             }
         }
+    }
+
+    private fun shouldConfigureCrashlytics(): Boolean {
+        val physicalDevice = !isEmulator
+        val reportingAllowedForBuild = !BuildConfig.DEBUG || !Debug.isDebuggerConnected()
+        return physicalDevice && reportingAllowedForBuild && ensureFirebaseConfigured()
+    }
+
+    private fun ensureFirebaseConfigured(): Boolean {
+        val app = runCatching {
+            FirebaseApp.getApps(this).firstOrNull() ?: FirebaseApp.initializeApp(this)
+        }.onFailure { ex ->
+            warn("Firebase initialization failed: ${ex.message}")
+        }.getOrNull()
+
+        if (app == null) {
+            warn("Crashlytics disabled: missing Firebase configuration")
+            return false
+        }
+
+        return true
     }
 }
