@@ -25,6 +25,7 @@ import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.text.style.StyleSpan
 import android.util.Log
+import com.geeksville.mesh.discovery.DiscoveryMap
 import com.geeksville.mesh.database.NodeRepository
 import com.geeksville.mesh.database.entity.NodeRegistry
 import com.geeksville.mesh.database.entity.isValidForTraceMap
@@ -65,6 +66,7 @@ sealed class MapMode {
     data object Normal : MapMode()
     data class Traceroute(val trace: TraceRouteMap) : MapMode()
     data class NeighborDiscovery(val discovery: NeighborDiscoveryMap) : MapMode()
+    data class Discovery(val discovery: DiscoveryMap) : MapMode()
 }
 
 @Suppress("MagicNumber")

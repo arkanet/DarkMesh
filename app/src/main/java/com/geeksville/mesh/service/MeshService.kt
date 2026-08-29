@@ -3054,6 +3054,20 @@ class MeshService : Service(), Logging {
             sendToRadio(neighborPacket)
         }
 
+        override fun requestLocalStats(requestId: Int) = toRemoteExceptions {
+            val telemetryPacket = newMeshPacketTo(myNodeNum).buildMeshPacket(
+                wantAck = true,
+                id = requestId,
+                channel = nodeDBbyNodeNum[myNodeNum]?.channel ?: 0,
+            ) {
+                portnumValue = Portnums.PortNum.TELEMETRY_APP_VALUE
+                wantResponse = true
+                payload = TelemetryProtos.Telemetry.getDefaultInstance().toByteString()
+            }
+
+            sendToRadio(telemetryPacket)
+        }
+
         override fun requestShutdown(requestId: Int, destNum: Int) = toRemoteExceptions {
             sendToRadio(newMeshPacketTo(destNum).buildAdminPacket(id = requestId) {
                 shutdownSeconds = 5

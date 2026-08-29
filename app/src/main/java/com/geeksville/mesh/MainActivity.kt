@@ -84,6 +84,7 @@ import com.geeksville.mesh.android.rationaleDialog
 import com.geeksville.mesh.android.shouldShowRequestPermissionRationale
 import com.geeksville.mesh.concurrent.handledLaunch
 import com.geeksville.mesh.database.DbImportState
+import com.geeksville.mesh.discovery.LocalMeshDiscoveryEngine
 import com.geeksville.mesh.model.BluetoothViewModel
 import com.geeksville.mesh.model.Contact
 import com.geeksville.mesh.model.DeviceVersion
@@ -125,6 +126,7 @@ import com.geeksville.mesh.ui.activity.HuntActivity
 import com.geeksville.mesh.ui.activity.MeshStatsActivity
 import com.geeksville.mesh.ui.activity.PlanMsgListActivity
 import com.geeksville.mesh.ui.components.ScannedQrCodeDialog
+import com.geeksville.mesh.ui.discovery.DiscoveryFragment
 import com.geeksville.mesh.ui.map.MapFragment
 import com.geeksville.mesh.ui.message.navigateToMessages
 import com.geeksville.mesh.ui.navigateToNavGraph
@@ -223,6 +225,9 @@ class MainActivity : AppCompatActivity(), Logging {
     @Inject
     internal lateinit var serviceRepository: ServiceRepository
 
+    @Inject
+    internal lateinit var localMeshDiscoveryEngine: LocalMeshDiscoveryEngine
+
     private val bluetoothPermissionsLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
             if (result.entries.all { it.value }) {
@@ -273,6 +278,11 @@ class MainActivity : AppCompatActivity(), Logging {
             "Map",
             R.drawable.ic_twotone_map_24,
             MapFragment()
+        ),
+        TabInfo(
+            "Discovery",
+            R.drawable.ic_antenna_24,
+            DiscoveryFragment()
         ),
         TabInfo(
             "Channel",
@@ -367,6 +377,7 @@ class MainActivity : AppCompatActivity(), Logging {
         // Handle any intent
         checkIfDeviceIsSensor()
         checkIfDeviceIsHidden()
+        localMeshDiscoveryEngine.startRecoveryWatcher()
         observeUnreadState()
         handleIntent(intent)
     }

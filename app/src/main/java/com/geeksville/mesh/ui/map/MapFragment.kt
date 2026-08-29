@@ -73,6 +73,7 @@ import com.geeksville.mesh.android.gpsDisabled
 import com.geeksville.mesh.android.hasGps
 import com.geeksville.mesh.android.hasLocationPermission
 import com.geeksville.mesh.database.entity.Packet
+import com.geeksville.mesh.discovery.DiscoveryMap
 import com.geeksville.mesh.model.MapMode
 import com.geeksville.mesh.model.NeighborDiscoveryMap
 import com.geeksville.mesh.model.Node
@@ -129,6 +130,7 @@ import kotlin.math.sqrt
 
 private const val TRACE_COLOR_FORWARD = android.graphics.Color.BLUE
 private const val TRACE_COLOR_BACK = android.graphics.Color.RED
+private val DISCOVERY_DIRECT_COLOR = android.graphics.Color.rgb(0, 128, 0)
 private const val DEFAULT_SPACING_POLYLINE_TRACE = 100.0
 
 @AndroidEntryPoint
@@ -306,6 +308,28 @@ fun MapView.drawNeighborDiscovery(discovery: NeighborDiscoveryMap) {
             fromNode = link.origin,
             toNode = link.discovered,
             color = neighborDiscoverySnrColor(link.snr),
+            offsetMeters = 0.0,
+            side = 1,
+        )
+    }.forEach {
+        overlays.add(it.toPolyline())
+    }
+
+    invalidate()
+}
+
+fun MapView.drawDiscovery(discovery: DiscoveryMap) {
+    overlays.removeAll { it is Polyline || it is Marker }
+
+    discovery.links.mapNotNull { link ->
+        buildSegmentForNeighbor(
+            fromNode = link.from,
+            toNode = link.to,
+            color = if (link.isDirect) {
+                DISCOVERY_DIRECT_COLOR
+            } else {
+                neighborDiscoverySnrColor(link.snr)
+            },
             offsetMeters = 0.0,
             side = 1,
         )
@@ -592,6 +616,7 @@ fun MapView(
             })
                 .distinctBy { it.num }
         }
+        is MapMode.Discovery -> mode.discovery.nodes.distinctBy { it.num }
     }
 
     val waypoints by model.waypoints.collectAsStateWithLifecycle(emptyMap())
@@ -788,6 +813,24 @@ fun MapView(
                 }
             }
 
+            is MapMode.Discovery -> {
+                map.drawDiscovery(mode.discovery)
+
+                val points = mode.discovery.links.flatMap { link ->
+                    listOfNotNull(
+                        link.from.toGeoPointOrNull(),
+                        link.to.toGeoPointOrNull(),
+                    )
+                }
+
+                if (points.isNotEmpty()) {
+                    map.zoomToBoundingBox(
+                        BoundingBox.fromGeoPoints(points),
+                        true,
+                    )
+                }
+            }
+
             MapMode.Normal -> {
                 map.overlays.removeAll { it is Polyline }
                 map.invalidate()
@@ -835,7 +878,9 @@ fun MapView(
 
         var wpts = onWaypointChanged(waypoints.values)
 
-        if(mapMode is MapMode.Traceroute || mapMode is MapMode.NeighborDiscovery){
+        if(mapMode is MapMode.Traceroute ||
+            mapMode is MapMode.NeighborDiscovery ||
+            mapMode is MapMode.Discovery){
             wpts = emptyList()
         }
 
@@ -997,43 +1042,46 @@ fun MapView(
                 )
             }
 
-            if (downloadRegionBoundingBox != null) CacheLayout(
-                cacheEstimate = cacheEstimate,
-                onExecuteJob = { startDownload() },
-                onCancelDownload = {
-                    downloadRegionBoundingBox = null
-                    map.overlays.removeAll { it is Polygon }
-                    map.invalidate()
-                },
-                modifier = Modifier.align(Alignment.BottomCenter)
-            ) else Column(
-                modifier = Modifier
-                    .padding(top = 16.dp, end = 16.dp)
-                    .align(Alignment.TopEnd),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                MapButton(
-                    onClick = ::showMapStyleDialog,
-                    icon = Icons.Outlined.Layers,
-                    contentDescription = R.string.map_style_selection,
-                )
-                MapButton(
-                    enabled = hasGps,
-                    icon = if (myLocationOverlay == null) {
-                        Icons.Outlined.MyLocation
-                    } else {
-                        Icons.Default.LocationDisabled
+            if (downloadRegionBoundingBox != null) {
+                CacheLayout(
+                    cacheEstimate = cacheEstimate,
+                    onExecuteJob = { startDownload() },
+                    onCancelDownload = {
+                        downloadRegionBoundingBox = null
+                        map.overlays.removeAll { it is Polygon }
+                        map.invalidate()
                     },
-                    contentDescription = null,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .padding(top = 16.dp, end = 16.dp)
+                        .align(Alignment.TopEnd),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    if (context.hasLocationPermission()) {
-                        map.toggleMyLocation()
-                    } else {
-                        requestPermissionAndToggleLauncher.launch(context.getLocationPermissions())
+                    MapButton(
+                        onClick = ::showMapStyleDialog,
+                        icon = Icons.Outlined.Layers,
+                        contentDescription = R.string.map_style_selection,
+                    )
+                    MapButton(
+                        enabled = hasGps,
+                        icon = if (myLocationOverlay == null) {
+                            Icons.Outlined.MyLocation
+                        } else {
+                            Icons.Default.LocationDisabled
+                        },
+                        contentDescription = null,
+                    ) {
+                        if (context.hasLocationPermission()) {
+                            map.toggleMyLocation()
+                        } else {
+                            requestPermissionAndToggleLauncher.launch(context.getLocationPermissions())
+                        }
                     }
-                }
 
-                if(mapMode is MapMode.Traceroute){
+                if (mapMode is MapMode.Traceroute) {
 
                     val trace = (mapMode as MapMode.Traceroute).trace.sourceTrace
 
@@ -1084,6 +1132,17 @@ fun MapView(
                         },
                         contentDescription = "Show Neighbor Discovery",
                     )
+                }
+
+                if (mapMode is MapMode.Discovery) {
+                    MapButton(
+                        icon = Icons.Default.Clear,
+                        onClick = {
+                            model.exitDiscoveryMode()
+                        },
+                        contentDescription = "Clear Discovery",
+                    )
+                }
                 }
             }
         }

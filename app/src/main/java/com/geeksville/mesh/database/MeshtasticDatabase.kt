@@ -26,12 +26,16 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.AutoMigrationSpec
+import com.geeksville.mesh.database.dao.DiscoveryDao
 import com.geeksville.mesh.database.dao.MeshLogDao
 import com.geeksville.mesh.database.dao.NodeInfoDao
 import com.geeksville.mesh.database.dao.NodeRegistryDao
 import com.geeksville.mesh.database.dao.PacketDao
 import com.geeksville.mesh.database.dao.QuickChatActionDao
 import com.geeksville.mesh.database.entity.ContactSettings
+import com.geeksville.mesh.database.entity.DiscoveredNodeEntity
+import com.geeksville.mesh.database.entity.DiscoveryPresetResultEntity
+import com.geeksville.mesh.database.entity.DiscoverySessionEntity
 import com.geeksville.mesh.database.entity.MeshLog
 import com.geeksville.mesh.database.entity.MetadataEntity
 import com.geeksville.mesh.database.entity.MyNodeEntity
@@ -51,7 +55,10 @@ import com.geeksville.mesh.database.entity.ReactionEntity
         QuickChatAction::class,
         ReactionEntity::class,
         MetadataEntity::class,
-        NodeRegistry::class
+        NodeRegistry::class,
+        DiscoverySessionEntity::class,
+        DiscoveryPresetResultEntity::class,
+        DiscoveredNodeEntity::class,
     ],
     autoMigrations = [
         AutoMigration(from = 3, to = 4),
@@ -76,8 +83,9 @@ import com.geeksville.mesh.database.entity.ReactionEntity
         AutoMigration(from = 22, to = 23),
         AutoMigration(from = 23, to = 24),
         AutoMigration(from = 24, to = 25),
+        AutoMigration(from = 25, to = 26),
     ],
-    version = 25,
+    version = 26,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -87,6 +95,7 @@ abstract class MeshtasticDatabase : RoomDatabase() {
     abstract fun meshLogDao(): MeshLogDao
     abstract fun quickChatActionDao(): QuickChatActionDao
     abstract fun nodeRegistryDao(): NodeRegistryDao
+    abstract fun discoveryDao(): DiscoveryDao
 
     companion object {
         fun getDatabase(context: Context): MeshtasticDatabase {

@@ -55,6 +55,7 @@ import com.geeksville.mesh.database.entity.MyNodeEntity
 import com.geeksville.mesh.database.entity.NodeRegistry
 import com.geeksville.mesh.database.entity.Packet
 import com.geeksville.mesh.database.entity.QuickChatAction
+import com.geeksville.mesh.discovery.DiscoveryMap
 import com.geeksville.mesh.repository.datastore.RadioConfigRepository
 import com.geeksville.mesh.repository.radio.RadioInterfaceService
 import com.geeksville.mesh.service.GlobalRadioMesh.ourNeighborRequests
@@ -317,11 +318,20 @@ class UIViewModel @Inject constructor(
         setCurrentTab(2)
     }
 
+    fun showDiscoveryMap(discovery: DiscoveryMap) {
+        _mapMode.value = MapMode.Discovery(discovery)
+        setCurrentTab(2)
+    }
+
     fun exitTracerouteMode() {
         _mapMode.value = MapMode.Normal
     }
 
     fun exitNeighborDiscoveryMode() {
+        _mapMode.value = MapMode.Normal
+    }
+
+    fun exitDiscoveryMode() {
         _mapMode.value = MapMode.Normal
     }
 
