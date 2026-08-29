@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.Scaffold
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.LocationDisabled
 import androidx.compose.material.icons.filled.People
@@ -86,6 +87,7 @@ import com.geeksville.mesh.model.map.clustering.RadiusMarkerClusterer
 import com.geeksville.mesh.model.neighborDiscoverySnrColor
 import com.geeksville.mesh.ui.ScreenFragment
 import com.geeksville.mesh.ui.components.NeighborDiscoveryDialog
+import com.geeksville.mesh.ui.discovery.DiscoveryNodeListDialog
 import com.geeksville.mesh.ui.theme.AppTheme
 import com.geeksville.mesh.util.AppUtil
 import com.geeksville.mesh.util.MeshStatsUtil
@@ -525,6 +527,7 @@ fun MapView(
     }
 
     var showNeighborDiscoveryList by remember { mutableStateOf(false) }
+    var showDiscoveryList by remember { mutableStateOf(false) }
 
     // UI Elements
     var cacheEstimate by remember { mutableStateOf("") }
@@ -770,6 +773,7 @@ fun MapView(
 
     LaunchedEffect(mapMode) {
         showNeighborDiscoveryList = false
+        showDiscoveryList = false
 
         when (val mode = mapMode) {
             is MapMode.Traceroute -> {
@@ -1044,6 +1048,15 @@ fun MapView(
                 )
             }
 
+            if (mapMode is MapMode.Discovery && showDiscoveryList) {
+                DiscoveryNodeListDialog(
+                    nodeList = (mapMode as MapMode.Discovery).discovery.nodeList,
+                    onDismiss = {
+                        showDiscoveryList = false
+                    },
+                )
+            }
+
             if (downloadRegionBoundingBox != null) {
                 CacheLayout(
                     cacheEstimate = cacheEstimate,
@@ -1140,9 +1153,17 @@ fun MapView(
                     MapButton(
                         icon = Icons.Default.Clear,
                         onClick = {
+                            showDiscoveryList = false
                             model.exitDiscoveryMode()
                         },
                         contentDescription = "Clear Discovery",
+                    )
+                    MapButton(
+                        icon = Icons.AutoMirrored.Default.List,
+                        onClick = {
+                            showDiscoveryList = !showDiscoveryList
+                        },
+                        contentDescription = "Show Discovery List",
                     )
                 }
                 }

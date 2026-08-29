@@ -27,6 +27,7 @@ internal object DiscoveryMapBuilder {
         nodes: List<DiscoveredNodeEntity>,
         localNode: Node?,
         localNodeNum: Long?,
+        presetName: String = "",
     ): DiscoveryMap? {
         if (nodes.isEmpty()) return null
 
@@ -52,6 +53,12 @@ internal object DiscoveryMapBuilder {
             links = (positionedObservedLinks + anchoredRouteLinks).distinctBy {
                 "${it.from.num}:${it.to.num}:${it.isDirect}"
             },
+            nodeList = DiscoveryNodeListBuilder.build(
+                presetName = presetName,
+                nodes = nodes,
+                localNode = localNode,
+                localNodeNum = localNodeNum,
+            ),
         )
     }
 

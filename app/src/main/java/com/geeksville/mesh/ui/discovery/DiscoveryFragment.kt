@@ -46,6 +46,7 @@ import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
@@ -53,6 +54,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -65,6 +67,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.geeksville.mesh.database.entity.DiscoverySessionEntity
+import com.geeksville.mesh.discovery.DiscoveryNodeList
 import com.geeksville.mesh.discovery.DiscoveryPresetRank
 import com.geeksville.mesh.discovery.DiscoveryScanState
 import com.geeksville.mesh.discovery.LocalMeshDiscoveryViewModel
@@ -109,13 +112,25 @@ private fun DiscoveryScreen(
     var selectedPresetNames by rememberSaveable {
         mutableStateOf(listOf(ChannelOption.LONG_FAST.name))
     }
+    var selectedNodeList by remember { mutableStateOf<DiscoveryNodeList?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.mapEvents.collect { uiViewModel.showDiscoveryMap(it) }
     }
 
     LaunchedEffect(Unit) {
+        viewModel.listEvents.collect { selectedNodeList = it }
+    }
+
+    LaunchedEffect(Unit) {
         viewModel.messageEvents.collect { uiViewModel.showSnackbar(it) }
+    }
+
+    selectedNodeList?.let { nodeList ->
+        DiscoveryNodeListDialog(
+            nodeList = nodeList,
+            onDismiss = { selectedNodeList = null },
+        )
     }
 
     val selectedPresets = ChannelOption.entries
@@ -146,6 +161,7 @@ private fun DiscoveryScreen(
         },
         onStop = viewModel::stopScan,
         onMap = viewModel::requestMap,
+        onList = viewModel::requestList,
     )
 }
 
@@ -164,6 +180,7 @@ private fun DiscoveryContent(
     onStart: () -> Unit,
     onStop: () -> Unit,
     onMap: (Long) -> Unit,
+    onList: (Long) -> Unit,
 ) {
     Surface {
         LazyColumn(
@@ -191,7 +208,11 @@ private fun DiscoveryContent(
             if (rankings.isNotEmpty()) {
                 item { SectionTitle("Ranking") }
                 items(rankings, key = { "rank-${it.presetResultId}" }) { rank ->
-                    PresetRankItem(rank = rank, onMap = { onMap(rank.presetResultId) })
+                    PresetRankItem(
+                        rank = rank,
+                        onMap = { onMap(rank.presetResultId) },
+                        onList = { onList(rank.presetResultId) },
+                    )
                 }
             }
 
@@ -319,6 +340,7 @@ private fun DiscoveryStatus(
 private fun PresetRankItem(
     rank: DiscoveryPresetRank,
     onMap: () -> Unit,
+    onList: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -336,10 +358,20 @@ private fun PresetRankItem(
                         "SNR ${rank.averageSnr.formatDb()}, RSSI ${rank.averageRssi.formatRssi()}"
                     )
                 }
-                OutlinedButton(onClick = onMap) {
-                    Icon(Icons.Default.Map, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Map")
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedButton(onClick = onMap) {
+                        Icon(Icons.Default.Map, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Map")
+                    }
+                    OutlinedButton(onClick = onList) {
+                        Icon(Icons.AutoMirrored.Default.List, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("List")
+                    }
                 }
             }
         }

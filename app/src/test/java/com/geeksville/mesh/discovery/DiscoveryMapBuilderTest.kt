@@ -27,6 +27,44 @@ import org.junit.Test
 
 class DiscoveryMapBuilderTest {
     @Test
+    fun buildsNodeListWithPresetOriginDirectNodesFirstAndNeighborSnrFallback() {
+        val nodeList = DiscoveryNodeListBuilder.build(
+            presetName = PRESET_NAME,
+            localNode = Node(
+                num = LOCAL_NODE,
+                liteLongName = LOCAL_NODE_NAME,
+            ),
+            localNodeNum = LOCAL_NODE.toLong(),
+            nodes = listOf(
+                discoveredNode(
+                    nodeNum = NODE_C,
+                    viaNodeNum = NODE_B,
+                    hopCount = TWO_HOPS,
+                    snr = null,
+                    neighborSnr = MESH_NEIGHBOR_SNR,
+                ),
+                discoveredNode(
+                    nodeNum = NODE_B,
+                    neighborType = DiscoveryNeighborType.DIRECT,
+                    hopCount = DIRECT_HOPS,
+                    snr = DIRECT_SNR,
+                ),
+                discoveredNode(
+                    nodeNum = NODE_F,
+                    viaNodeNum = NODE_C,
+                    hopCount = THREE_HOPS,
+                    snr = FAR_MESH_SNR,
+                ),
+            ),
+        )
+
+        assertEquals(PRESET_NAME, nodeList.presetName)
+        assertEquals(LOCAL_NODE_NAME, nodeList.originName)
+        assertEquals(listOf(NODE_B, NODE_C, NODE_F), nodeList.nodes.map { it.nodeNum })
+        assertEquals(MESH_NEIGHBOR_SNR, nodeList.nodes[1].snr)
+    }
+
+    @Test
     fun anchorsMeshRouteToFirstAndLastPositionedHopWhenLogicalEndpointsAreMissingPosition() {
         val map = requireNotNull(
             DiscoveryMapBuilder.build(
@@ -106,6 +144,8 @@ class DiscoveryMapBuilderTest {
         longitude: Double? = null,
         viaNodeNum: Long? = null,
         hopCount: Int? = null,
+        snr: Float? = DEFAULT_SNR,
+        neighborSnr: Float? = DEFAULT_SNR,
     ) = DiscoveredNodeEntity(
         presetResultId = PRESET_RESULT_ID,
         nodeNum = nodeNum,
@@ -117,12 +157,14 @@ class DiscoveryMapBuilderTest {
         latitude = latitude,
         longitude = longitude,
         hopCount = hopCount,
-        snr = DEFAULT_SNR,
+        snr = snr,
         viaNodeNum = viaNodeNum,
-        neighborSnr = DEFAULT_SNR,
+        neighborSnr = neighborSnr,
     )
 
     private companion object {
+        const val PRESET_NAME = "TINY_FAST"
+        const val LOCAL_NODE_NAME = "Local node"
         const val PRESET_RESULT_ID = 1L
         const val LOCAL_NODE = 1
         const val NODE_B = 2L
@@ -139,5 +181,8 @@ class DiscoveryMapBuilderTest {
         const val NODE_F_LATITUDE = 46.0
         const val NODE_F_LONGITUDE = 10.0
         const val DEFAULT_SNR = -3.5f
+        const val DIRECT_SNR = -12.0f
+        const val MESH_NEIGHBOR_SNR = 4.5f
+        const val FAR_MESH_SNR = 8.0f
     }
 }

@@ -117,6 +117,7 @@ class LocalMeshDiscoveryEngine @Inject constructor(
     }
 
     suspend fun buildDiscoveryMap(presetResultId: Long): DiscoveryMap? {
+        val result = discoveryDao.getPresetResult(presetResultId)
         val nodes = discoveryDao.getDiscoveredNodes(presetResultId)
         val localNodeNum = radioConfigRepository.myNodeInfo.value?.myNodeNum?.toLong()
         val localMapNode = localNodeNum?.let { nodeNum ->
@@ -126,6 +127,22 @@ class LocalMeshDiscoveryEngine @Inject constructor(
             nodes = nodes,
             localNodeNum = localNodeNum,
             localNode = localMapNode,
+            presetName = result?.presetName.orEmpty(),
+        )
+    }
+
+    suspend fun buildDiscoveryNodeList(presetResultId: Long): DiscoveryNodeList? {
+        val result = discoveryDao.getPresetResult(presetResultId) ?: return null
+        val nodes = discoveryDao.getDiscoveredNodes(presetResultId)
+        val localNodeNum = radioConfigRepository.myNodeInfo.value?.myNodeNum?.toLong()
+        val localMapNode = localNodeNum?.let { nodeNum ->
+            radioConfigRepository.nodeDBbyNum.value[nodeNum.toInt()]
+        }
+        return DiscoveryNodeListBuilder.build(
+            presetName = result.presetName,
+            nodes = nodes,
+            localNode = localMapNode,
+            localNodeNum = localNodeNum,
         )
     }
 

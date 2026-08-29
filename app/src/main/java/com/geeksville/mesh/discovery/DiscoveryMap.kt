@@ -26,8 +26,21 @@ data class DiscoveryMapLink(
     val isDirect: Boolean,
 )
 
+data class DiscoveryNodeListItem(
+    val nodeNum: Long,
+    val longName: String,
+    val snr: Float?,
+)
+
+data class DiscoveryNodeList(
+    val presetName: String,
+    val originName: String,
+    val nodes: List<DiscoveryNodeListItem>,
+)
+
 data class DiscoveryMap(
     val localNode: Node?,
     val nodes: List<Node>,
     val links: List<DiscoveryMapLink>,
+    val nodeList: DiscoveryNodeList,
 )

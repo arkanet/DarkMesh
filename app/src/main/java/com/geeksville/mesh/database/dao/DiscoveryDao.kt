@@ -64,6 +64,9 @@ interface DiscoveryDao {
     )
     suspend fun getPresetResults(sessionId: Long): List<DiscoveryPresetResultEntity>
 
+    @Query("SELECT * FROM discovery_preset_result WHERE id = :presetResultId LIMIT 1")
+    suspend fun getPresetResult(presetResultId: Long): DiscoveryPresetResultEntity?
+
     @Query(
         """
         SELECT * FROM discovered_node

@@ -45,6 +45,9 @@ class LocalMeshDiscoveryViewModel @Inject constructor(
     private val _mapEvents = MutableSharedFlow<DiscoveryMap>()
     val mapEvents = _mapEvents.asSharedFlow()
 
+    private val _listEvents = MutableSharedFlow<DiscoveryNodeList>()
+    val listEvents = _listEvents.asSharedFlow()
+
     private val _messageEvents = MutableSharedFlow<String>()
     val messageEvents = _messageEvents.asSharedFlow()
 
@@ -63,6 +66,17 @@ class LocalMeshDiscoveryViewModel @Inject constructor(
                 _messageEvents.emit("Discovery map unavailable: missing GPS links")
             } else {
                 _mapEvents.emit(map)
+            }
+        }
+    }
+
+    fun requestList(presetResultId: Long) {
+        viewModelScope.launch {
+            val nodeList = engine.buildDiscoveryNodeList(presetResultId)
+            if (nodeList == null) {
+                _messageEvents.emit("Discovery list unavailable")
+            } else {
+                _listEvents.emit(nodeList)
             }
         }
     }
