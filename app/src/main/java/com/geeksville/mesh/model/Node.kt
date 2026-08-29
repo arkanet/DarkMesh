@@ -19,6 +19,7 @@ package com.geeksville.mesh.model
 
 import android.graphics.Color
 
+import com.geeksville.mesh.util.PkiUtils
 import com.geeksville.mesh.util.GPSFormat
 import com.geeksville.mesh.util.latLongToMeter
 import com.geeksville.mesh.util.toDistanceString
@@ -74,9 +75,9 @@ data class Node(
         }
 
     val isUnknownUser get() = user.hwModel == MeshProtos.HardwareModel.UNSET
-    val hasPKC get() = !user.publicKey.isEmpty
-    val errorByteString: ByteString get() = ByteString.copyFrom(ByteArray(32) { 0 })
-    val mismatchKey get() = user.publicKey == errorByteString
+    val hasPKC get() = PkiUtils.hasUsablePublicKey(user.publicKey)
+    val errorByteString: ByteString get() = PkiUtils.MISMATCH_PUBLIC_KEY
+    val mismatchKey get() = PkiUtils.isMismatchPublicKey(user.publicKey)
 
     val hasEnvironmentMetrics: Boolean
         get() = environmentMetrics != EnvironmentMetrics.getDefaultInstance()

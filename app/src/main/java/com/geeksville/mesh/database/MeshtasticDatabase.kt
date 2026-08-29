@@ -20,6 +20,7 @@ package com.geeksville.mesh.database
 import android.content.Context
 import androidx.room.AutoMigration
 import androidx.room.Database
+import androidx.room.DeleteColumn
 import androidx.room.DeleteTable
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -66,8 +67,17 @@ import com.geeksville.mesh.database.entity.ReactionEntity
         AutoMigration(from = 13, to = 14),
         AutoMigration(from = 14, to = 15),
         AutoMigration(from = 15, to = 16),
+        AutoMigration(from = 16, to = 17),
+        AutoMigration(from = 17, to = 18),
+        AutoMigration(from = 18, to = 19),
+        AutoMigration(from = 19, to = 20),
+        AutoMigration(from = 20, to = 21),
+        AutoMigration(from = 21, to = 22, spec = AutoMigration21to22::class),
+        AutoMigration(from = 22, to = 23),
+        AutoMigration(from = 23, to = 24),
+        AutoMigration(from = 24, to = 25),
     ],
-    version = 24,
+    version = 25,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -97,3 +107,9 @@ abstract class MeshtasticDatabase : RoomDatabase() {
     DeleteTable(tableName = "MyNodeInfo")
 )
 class AutoMigration12to13 : AutoMigrationSpec
+
+@DeleteColumn(
+    tableName = "node_registry",
+    columnName = "firstSeen"
+)
+class AutoMigration21to22 : AutoMigrationSpec
