@@ -120,6 +120,8 @@ class BluetoothInterface @AssistedInject constructor(
          */
         @Volatile
         var safe: SafeBluetooth? = null
+
+        private const val RECONNECT_DELAY_MILLIS = 1500L
     }
 
 
@@ -290,11 +292,11 @@ class BluetoothInterface @AssistedInject constructor(
 
                 // Make sure the old connection was killed
                 ignoreException {
-                    s.closeConnection()
+                    s.closeGatt()
                 }
 
                 service.onDisconnect(false) // assume we will fail
-                delay(1500) // Give some nasty time for buggy BLE stacks to shutdown (500ms was not enough)
+                delay(RECONNECT_DELAY_MILLIS)
                 reconnectJob = null // Any new reconnect requests after this will be allowed to run
                 warn("Attempting reconnect")
                 if (safe != null) // check again, because we just slept for 1sec, and someone might have closed our interface

@@ -91,6 +91,14 @@ class RadioConfigRepository @Inject constructor(
     suspend fun installNodeDB(mi: MyNodeEntity, nodes: List<NodeEntity>) {
         nodeDB.installNodeDB(mi, nodes)
     }
+
+    suspend fun clearCachedDeviceState() {
+        nodeDB.clearNodeDB()
+        clearChannelSet()
+        clearLocalConfig()
+        clearLocalModuleConfig()
+    }
+
     suspend fun insertMetadata(fromNum: Int, metadata: DeviceMetadata) {
         nodeDB.insertMetadata(MetadataEntity(fromNum, metadata))
     }

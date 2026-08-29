@@ -190,14 +190,14 @@ private fun DiscoveryContent(
 
             if (rankings.isNotEmpty()) {
                 item { SectionTitle("Ranking") }
-                items(rankings, key = { it.presetResultId }) { rank ->
+                items(rankings, key = { "rank-${it.presetResultId}" }) { rank ->
                     PresetRankItem(rank = rank, onMap = { onMap(rank.presetResultId) })
                 }
             }
 
             if (sessions.isNotEmpty()) {
                 item { SectionTitle("Recent Sessions") }
-                items(sessions, key = { it.id }) { session ->
+                items(sessions, key = { "session-${it.id}" }) { session ->
                     SessionItem(session = session)
                 }
             }

@@ -72,6 +72,7 @@ import com.geeksville.mesh.repository.datastore.RadioConfigRepository
 import com.geeksville.mesh.repository.location.LocationEmitPolicy
 import com.geeksville.mesh.repository.location.LocationRepository
 import com.geeksville.mesh.repository.network.MQTTRepository
+import com.geeksville.mesh.repository.radio.InterfaceId
 import com.geeksville.mesh.repository.radio.RadioInterfaceService
 import com.geeksville.mesh.repository.radio.RadioServiceConnectionState
 import com.geeksville.mesh.service.DistressService.PREF_STRESSTEST_ENABLED
@@ -248,6 +249,8 @@ class MeshService : Service(), Logging {
          * to talk to 2.0 firmwares but only well enough to ask them to firmware update.
          */
         val minDeviceVersion = DeviceVersion("2.3.2")
+
+        private const val DEVICE_SLEEP_GRACE_SECONDS = 30
     }
 
     fun buildContactKeyForMessage(node: NodeEntity): String {
@@ -572,9 +575,24 @@ class MeshService : Service(), Logging {
     private fun discardNodeDB() {
         debug("Discarding NodeDB")
         myNodeInfo = null
+        rawMyNodeInfo = null
+        newMyNodeInfo = null
         nodeDBbyNodeNum.clear()
         haveNodeDB = false
         clearLowBatteryAlertState()
+    }
+
+    private fun discardLocalDeviceState() {
+        discardNodeDB()
+        localConfig = LocalConfig.getDefaultInstance()
+        moduleConfig = LocalModuleConfig.getDefaultInstance()
+        channelSet = AppOnlyProtos.ChannelSet.getDefaultInstance()
+    }
+
+    private fun clearCachedDeviceState() {
+        serviceScope.handledLaunch {
+            radioConfigRepository.clearCachedDeviceState()
+        }
     }
 
     private fun clearLowBatteryAlertState() {
@@ -2053,9 +2071,7 @@ class MeshService : Service(), Logging {
             // Have our timeout fire in the appropriate number of seconds
             sleepTimeout = serviceScope.handledLaunch {
                 try {
-                    // If we have a valid timeout, wait that long (+30 seconds) otherwise, just wait 30 seconds
-                    val timeout = (localConfig.power?.lsSecs ?: 0) + 30
-
+                    val timeout = (localConfig.power?.lsSecs ?: 0) + DEVICE_SLEEP_GRACE_SECONDS
                     debug("Waiting for sleeping device, timeout=$timeout secs")
                     delay(timeout * 1000L)
                     warn("Device timeout out, setting disconnected")
@@ -2156,7 +2172,9 @@ class MeshService : Service(), Logging {
     private fun onRadioConnectionState(state: RadioServiceConnectionState) {
         // sleep now disabled by default on ESP32, permanent is true unless light sleep enabled
         val isRouter = localConfig.device.role == ConfigProtos.Config.DeviceConfig.Role.ROUTER
-        val lsEnabled = localConfig.power.isPowerSaving || isRouter
+        val isBluetooth =
+            radioInterfaceService.getBondedDeviceAddress()?.firstOrNull() == InterfaceId.BLUETOOTH.id
+        val lsEnabled = !isBluetooth && (localConfig.power.isPowerSaving || isRouter)
         val connected = state.isConnected
         val permanent = state.isPermanent || !lsEnabled
         onConnectionChanged(
@@ -2749,7 +2767,8 @@ class MeshService : Service(), Logging {
 
             val res = radioInterfaceService.setDeviceAddress(deviceAddr)
             if (res) {
-                discardNodeDB()
+                discardLocalDeviceState()
+                clearCachedDeviceState()
             } else {
                 serviceBroadcasts.broadcastConnection()
             }
