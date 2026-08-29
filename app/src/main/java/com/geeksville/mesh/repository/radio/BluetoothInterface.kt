@@ -122,6 +122,7 @@ class BluetoothInterface @AssistedInject constructor(
         var safe: SafeBluetooth? = null
 
         private const val RECONNECT_DELAY_MILLIS = 1500L
+        private const val CONNECT_ATTEMPT_TIMEOUT_MILLIS = 30_000L
     }
 
 
@@ -285,24 +286,7 @@ class BluetoothInterface @AssistedInject constructor(
             /// We gracefully handle safe being null because this can occur if someone has unpaired from our device - just abandon the reconnect attempt
             val s = safe
             if (s != null) {
-                warn("Forcing disconnect and hopefully device will comeback (disabling forced refresh)")
-
-                // The following optimization is not currently correct - because the device might be sleeping and come back with different BLE handles
-                // hasForcedRefresh = true // We've already tossed any old service caches, no need to do it again
-
-                // Make sure the old connection was killed
-                ignoreException {
-                    s.closeGatt()
-                }
-
-                service.onDisconnect(false) // assume we will fail
-                delay(RECONNECT_DELAY_MILLIS)
-                reconnectJob = null // Any new reconnect requests after this will be allowed to run
-                warn("Attempting reconnect")
-                if (safe != null) // check again, because we just slept for 1sec, and someone might have closed our interface
-                    startConnect()
-                else
-                    warn("Not connecting, because safe==null, someone must have closed us")
+                reconnectUntilQueued(s)
             } else {
                 warn("Abandoning reconnect because safe==null, someone must have closed the device")
             }
@@ -311,6 +295,21 @@ class BluetoothInterface @AssistedInject constructor(
         } finally {
             reconnectJob = null
         }
+    }
+
+    private suspend fun reconnectUntilQueued(safeBluetooth: SafeBluetooth) {
+        while (safe === safeBluetooth) {
+            warn("Forcing disconnect and hopefully device will comeback (disabling forced refresh)")
+            ignoreException {
+                safeBluetooth.resetGattForReconnect()
+            }
+            service.onDisconnect(false) // assume we will fail
+            delay(RECONNECT_DELAY_MILLIS)
+            warn("Attempting reconnect")
+            if (startConnect()) return
+            warn("Reconnect attempt could not be queued, retrying")
+        }
+        warn("Not connecting, because safe changed or someone must have closed us")
     }
 
     /// We only try to set MTU once, because some buggy implementations fail
@@ -366,8 +365,10 @@ class BluetoothInterface @AssistedInject constructor(
 
     private fun onConnect(connRes: Result<Unit>) {
         // This callback is invoked after we are connected
-
-        connRes.getOrThrow()
+        connRes.onFailure {
+            scheduleReconnect("connect failed, ${it.message}")
+            return
+        }
 
         service.serviceScope.handledLaunch {
             info("Connected to radio!")
@@ -423,15 +424,23 @@ class BluetoothInterface @AssistedInject constructor(
     }
 
     /// Start a connection attempt
-    private fun startConnect() {
+    private fun startConnect(): Boolean {
         // we pass in true for autoconnect - so we will autoconnect whenever the radio
         // comes in range (even if we made this connect call long ago when we got powered on)
         // see https://stackoverflow.com/questions/40156699/which-correct-flag-of-autoconnect-in-connectgatt-of-ble for
         // more info
-        val safeBluetooth = safe ?: return
-        safeBluetooth.asyncConnect(true,
-            cb = ::onConnect,
-            lostConnectCb = { scheduleReconnect("connection dropped") })
+        val safeBluetooth = safe ?: return false
+        return runCatching {
+            safeBluetooth.asyncConnect(
+                autoConnect = true,
+                timeout = CONNECT_ATTEMPT_TIMEOUT_MILLIS,
+                cb = ::onConnect,
+                lostConnectCb = { scheduleReconnect("connection dropped") },
+            )
+            true
+        }.onFailure {
+            warn("Could not start connect, ${it.message}")
+        }.getOrDefault(false)
     }
 
 

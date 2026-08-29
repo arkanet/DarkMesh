@@ -155,7 +155,6 @@ class LocalMeshDiscoveryEngine @Inject constructor(
             targets.forEach { target ->
                 coroutineContext.ensureActive()
                 switchPreset(target, homeSnapshot.homeLoraConfig)
-                waitForRadioReady(target.name)
                 startDwell(sessionId, target, dwellSeconds, homeSnapshot)
                 requestDiscoveryPackets()
                 runDwell(target.name, dwellSeconds)
@@ -253,7 +252,7 @@ class LocalMeshDiscoveryEngine @Inject constructor(
             .build()
 
         applyLoRaConfig(scanLora)
-        delay(CONFIG_SETTLE_MS)
+        waitForRadioRestart(target.name)
     }
 
     private suspend fun startDwell(
@@ -411,8 +410,7 @@ class LocalMeshDiscoveryEngine @Inject constructor(
             applyPrimaryChannel(session.homePrimaryChannel)
         }
         applyLoRaConfig(homeLora)
-        delay(CONFIG_SETTLE_MS)
-        waitForRadioReady("home")
+        waitForRadioRestart("home")
         updateSessionStatus(session.id, finalStatus, failureMessage)
     }
 
@@ -469,6 +467,17 @@ class LocalMeshDiscoveryEngine @Inject constructor(
         delay(RADIO_READY_SETTLE_MS)
     }
 
+    private suspend fun waitForRadioRestart(presetName: String) {
+        val disconnected = withTimeoutOrNull(RESTART_DETECTION_TIMEOUT_MS) {
+            radioConfigRepository.connectionState.first { it != ConnectionState.CONNECTED }
+        }
+        if (disconnected == null) {
+            delay(CONFIG_SETTLE_MS)
+        } else {
+            waitForRadioReady(presetName)
+        }
+    }
+
     private suspend fun updateSessionStatus(
         sessionId: Long,
         status: String,
@@ -504,6 +513,7 @@ class LocalMeshDiscoveryEngine @Inject constructor(
     companion object {
         private const val CONNECT_TIMEOUT_MS = 120_000L
         private const val CONFIG_SETTLE_MS = 3_000L
+        private const val RESTART_DETECTION_TIMEOUT_MS = 15_000L
         private const val RADIO_READY_SETTLE_MS = 1_000L
         private const val ONE_SECOND_MS = 1_000L
         private const val DEVICE_METRICS_MIN_SAMPLES = 2

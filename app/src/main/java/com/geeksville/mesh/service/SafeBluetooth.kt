@@ -546,6 +546,7 @@ class SafeBluetooth(
      */
     fun asyncConnect(
         autoConnect: Boolean = false,
+        timeout: Long = 0,
         cb: (Result<Unit>) -> Unit,
         lostConnectCb: () -> Unit
     ) {
@@ -558,7 +559,7 @@ class SafeBluetooth(
             cb
         else
             null
-        queueConnect(autoConnect, CallbackContinuation(cb))
+        queueConnect(autoConnect, CallbackContinuation(cb), timeout)
     }
 
     /// Restart any previous connect attempts
@@ -783,6 +784,13 @@ class SafeBluetooth(
                 isClosing = false
             }
         }
+    }
+
+    /** Close the GATT and fail pending work without clearing reconnect callbacks. */
+    fun resetGattForReconnect() {
+        notifyHandlers.clear()
+        closeGatt()
+        failAllWork(BLEConnectionClosing())
     }
 
     /**
