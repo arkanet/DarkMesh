@@ -632,14 +632,16 @@ fun MapView(
 
         val gpsFormat = AppUtil.safeGpsFormat(model.config.display.gpsFormat)
         val displayUnits = model.config.display.units.number
-        return nodesWithPosition.map { node ->
+        return nodesWithPosition.mapNotNull { node ->
 
             val (p, u) = node.position to node.user
 
-            val nodePosition = if(!node.isValidNodeLite()){
+            val nodePosition = if (!node.isValidNodeLite()) {
                 GeoPoint(node.latitude, node.longitude)
             } else {
-                GeoPoint(node.liteLatitude!!, node.liteLongitude!!)
+                val liteLatitude = node.liteLatitude ?: return@mapNotNull null
+                val liteLongitude = node.liteLongitude ?: return@mapNotNull null
+                GeoPoint(liteLatitude, liteLongitude)
             }
 
             MarkerWithLabel(

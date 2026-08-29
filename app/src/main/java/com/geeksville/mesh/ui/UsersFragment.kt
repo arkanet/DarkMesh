@@ -206,8 +206,8 @@ fun NodesScreen(
                 if(showRxActivityBar){ MeshHealthBox(count) }
             }
 
-            if(DbImportState.importInProgress()){
-                DbImportInfoBox(contact!!, model)
+            if (DbImportState.importInProgress()) {
+                contact?.let { contactName -> DbImportInfoBox(contactName, model) }
             }
 
             NodeFilterTextField(
@@ -673,4 +673,3 @@ fun PreviewRelayInfoBoxDark() {
     }
 }
 */
-

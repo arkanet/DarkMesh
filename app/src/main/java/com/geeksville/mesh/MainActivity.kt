@@ -362,10 +362,10 @@ class MainActivity : AppCompatActivity(), Logging {
 
             AppTheme {
                 if (connState.isConnected()) {
-                    if (requestChannelSet != null) {
+                    requestChannelSet?.let { incomingChannelSet ->
                         ScannedQrCodeDialog(
                             channels = channels,
-                            incoming = requestChannelSet!!,
+                            incoming = incomingChannelSet,
                             onDismiss = model::clearRequestChannelUrl,
                             onConfirm = model::setChannels,
                         )
@@ -502,9 +502,9 @@ class MainActivity : AppCompatActivity(), Logging {
         val dialog = builder.show()
 
         // Make the textview clickable. Must be called after show()
-        val view = (dialog.findViewById<TextView>(android.R.id.message))!!
+        val view = dialog.findViewById<TextView>(android.R.id.message)
         // Linkify.addLinks(view, Linkify.ALL) // not needed with this method
-        view.movementMethod = LinkMovementMethod.getInstance()
+        view?.movementMethod = LinkMovementMethod.getInstance()
 
         showSettingsPage() // Default to the settings page in this case
     }
@@ -974,11 +974,9 @@ class MainActivity : AppCompatActivity(), Logging {
                 if (!item.isChecked) {
 
                     item.isChecked = true
-                    var broadcastChannels = ArrayList<Contact>()
-
                     lifecycleScope.launch {
                         val contacts = model.contactList.value
-                        broadcastChannels = contacts.filter {
+                        val broadcastChannels = contacts.filter {
                             it.contactKey.contains(ID_BROADCAST)
                         }.toCollection(ArrayList())
 
@@ -1300,13 +1298,14 @@ class MainActivity : AppCompatActivity(), Logging {
             .setTitle("Select Broadcast Channel")
             .setView(layout)
             .setPositiveButton("START") { _, _ ->
-                if (selectedChannel != null) {
+                val channel = selectedChannel
+                if (channel != null) {
 
                     val userInput = inputField.text.toString()
                     val interval = inputSeconds.text.toString()
 
                     distressBeaconServiceIntent.apply {
-                        putExtra("contactKey", selectedChannel!!.contactKey)
+                        putExtra("contactKey", channel.contactKey)
                         putExtra("userInput", userInput)
                         putExtra("interval", interval)
                         putExtra("myLongName", myLongName.toString())

@@ -156,26 +156,30 @@ private fun parseNodeFromTraceroute(tracedNodes: List<String>?,
     val targetList = ArrayList<Node>()
 
     tracedNodes?.get(searchIndex)?.trim()?.split("■")?.let { tracers ->
-        for(node in tracers){
+        for (node in tracers) {
 
             val trimmedNode = node.trim()
-            if(trimmedNode.isBlank()) continue
+            if (trimmedNode.isBlank()) continue
 
             val user = nodeDb?.getUserLongNameContains(trimmedNode)
 
-            if(user != null && user.validPosition != null){
-                //valid user and valid coords
+            if (user != null && user.validPosition != null) {
+                // valid user and valid coords
                 targetList.add(user)
             } else {
-                //fallback on backupNode if exists
+                // fallback on backupNode if exists
                 nodeRegistrMap.values
                     .filter {
                         it.isValidForTraceMap()
                     }.firstOrNull {
-                        trimmedNode.contains(it.defaultName!!) ||
-                        trimmedNode.contains(it.longName!!)
+                        val defaultName = it.defaultName
+                        val longName = it.longName
+                        defaultName != null && longName != null &&
+                            (trimmedNode.contains(defaultName) || trimmedNode.contains(longName))
                     }?.let { backupNode ->
                         val nodeNum = hexIdToNodeNum(backupNode.nodeId)
+                        val latitudeI = backupNode.latitudeI ?: return@let
+                        val longitudeI = backupNode.longitudeI ?: return@let
                         targetList.add(
                             Node(
                                 num = nodeNum,
@@ -183,8 +187,8 @@ private fun parseNodeFromTraceroute(tracedNodes: List<String>?,
                                 liteDefaultName = backupNode.defaultName,
                                 liteLongName = backupNode.longName,
                                 liteShortName = backupNode.shortName,
-                                liteLatitude = backupNode.latitudeI!! * 1e-7,
-                                liteLongitude = backupNode.longitudeI!! * 1e-7,
+                                liteLatitude = latitudeI * 1e-7,
+                                liteLongitude = longitudeI * 1e-7,
                             )
                         )
                     }

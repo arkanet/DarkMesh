@@ -52,7 +52,7 @@ fun <T : Enum<T>> DropDownPreference(
         title = title,
         enabled = enabled,
         items = selectedItem.declaringJavaClass.enumConstants
-            ?.filter { it.name != "UNRECOGNIZED" }?.map { it to it.name } ?: emptyList(),
+            ?.filter { it.name != "UNRECOGNIZED" }?.map { it to it.name }.orEmpty(),
         selectedItem = selectedItem,
         onItemSelected = onItemSelected,
         modifier = modifier,
@@ -78,9 +78,9 @@ fun <T> DropDownPreference(
             val descriptor = (selectedItem as ProtocolMessageEnum).descriptorForType
 
             @Suppress("UNCHECKED_CAST")
-            enum?.filter { entries ->
+            (enum?.filter { entries ->
                 descriptor.values.any { it.name == entries.name && it.options.deprecated }
-            } as? List<T> ?: emptyList() // Safe cast to List<T> or return emptyList if cast fails
+            } as? List<T>).orEmpty()
         } else {
             emptyList()
         }

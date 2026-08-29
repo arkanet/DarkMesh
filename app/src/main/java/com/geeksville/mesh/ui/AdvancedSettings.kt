@@ -130,7 +130,7 @@ class AdvancedSettings : AppCompatActivity() {
 
         val autoDeleteTimeHours = advancedPrefs.getInt(
             AUTO_DELETE_TIME_HOURS,
-            hoursValues.maxOrNull()!!
+            hoursValues.last()
         )
 
         val distressPrefix = uiModelPrefs.getString(

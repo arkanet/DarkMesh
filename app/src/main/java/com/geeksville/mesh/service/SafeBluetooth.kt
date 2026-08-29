@@ -48,8 +48,11 @@ fun longBLEUUID(hexFour: String): UUID = UUID.fromString("0000$hexFour-0000-1000
  *
  * This class fixes the API by using coroutines to let you safely do a series of BTLE operations.
  */
-class SafeBluetooth(private val context: Context, private val device: BluetoothDevice) :
-    Logging, Closeable {
+class SafeBluetooth(
+    private val context: Context,
+    private val device: BluetoothDevice,
+    private val ioDispatcher: CoroutineDispatcher,
+) : Logging, Closeable {
 
     /// Timeout before we declare a bluetooth operation failed (used for synchronous API operations only)
     var timeoutMsec = 20 * 1000L
@@ -75,7 +78,7 @@ class SafeBluetooth(private val context: Context, private val device: BluetoothD
     /// from characteristic UUIDs to the handler function for notfies
     private val notifyHandlers = mutableMapOf<UUID, (BluetoothGattCharacteristic) -> Unit>()
 
-    private val serviceScope = CoroutineScope(Dispatchers.IO)
+    private val serviceScope = CoroutineScope(ioDispatcher)
 
     /**
      * A BLE status code based error
@@ -617,7 +620,9 @@ class SafeBluetooth(private val context: Context, private val device: BluetoothD
     private fun queueReadCharacteristic(
         c: BluetoothGattCharacteristic,
         cont: Continuation<BluetoothGattCharacteristic>, timeout: Long = 0
-    ) = queueWork("readC ${c.uuid}", cont, timeout) { gatt!!.readCharacteristic(c) }
+    ) = queueWork("readC ${c.uuid}", cont, timeout) {
+        gatt?.readCharacteristic(c) ?: false
+    }
 
     fun asyncReadCharacteristic(
         c: BluetoothGattCharacteristic,
@@ -700,9 +705,10 @@ class SafeBluetooth(private val context: Context, private val device: BluetoothD
         c: BluetoothGattCharacteristic,
         cont: Continuation<Unit>, timeout: Long = 0
     ) = queueWork("rwriteC ${c.uuid}", cont, timeout) {
-        logAssert(gatt!!.beginReliableWrite())
+        val activeGatt = gatt ?: return@queueWork false
+        logAssert(activeGatt.beginReliableWrite())
         currentReliableWrite = c.value.clone()
-        gatt?.writeCharacteristic(c) ?: false
+        activeGatt.writeCharacteristic(c)
     }
 
     fun asyncWriteReliable(
@@ -815,7 +821,8 @@ class SafeBluetooth(private val context: Context, private val device: BluetoothD
         debug("starting setNotify(${c.uuid}, $enable)")
         notifyHandlers[c.uuid] = onChanged
         // c.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-        gatt!!.setCharacteristicNotification(c, enable)
+        val activeGatt = gatt ?: throw BLEException("Bluetooth GATT is not connected")
+        activeGatt.setCharacteristicNotification(c, enable)
 
         // per https://stackoverflow.com/questions/27068673/subscribe-to-a-ble-gatt-notification-android
         val descriptor: BluetoothGattDescriptor = c.getDescriptor(configurationDescriptorUUID)

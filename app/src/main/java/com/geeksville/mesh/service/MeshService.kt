@@ -101,7 +101,6 @@ import dagger.hilt.android.AndroidEntryPoint
 import java8.util.concurrent.CompletableFuture
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
@@ -281,7 +280,7 @@ class MeshService : Service(), Logging {
     }
     private val uiPrefs by lazy { getPreferences(this) }
     private val serviceJob = Job()
-    private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
+    private val serviceScope by lazy { CoroutineScope(dispatchers.io + serviceJob) }
     var connectionState = ConnectionState.DISCONNECTED
 
     private var locationFlow: Job? = null
@@ -443,21 +442,21 @@ class MeshService : Service(), Logging {
 
     private fun updateMessageNotification(contactKey: String, dataPacket: DataPacket) {
         try {
-            val message: String = when (dataPacket.dataType) {
-                Portnums.PortNum.TEXT_MESSAGE_APP_VALUE,
-                Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE -> dataPacket.text!!
-                Portnums.PortNum.WAYPOINT_APP_VALUE -> {
-                    getString(R.string.waypoint_received, dataPacket.waypoint!!.name)
-                }
-                Portnums.PortNum.NODE_STATUS_APP_VALUE ->{
-                    "Status: ${dataPacket.statusMessageText}"
-                }
-                else -> return
-            }
+            val message = dataPacket.notificationMessage() ?: return
             serviceNotifications.updateMessageNotification(contactKey, getSenderName(dataPacket), message)
-        } catch (t: Throwable){
+        } catch (t: Throwable) {
             warn("Failed to update notification! ${t.message}")
         }
+    }
+
+    private fun DataPacket.notificationMessage(): String? = when (dataType) {
+        Portnums.PortNum.TEXT_MESSAGE_APP_VALUE,
+        Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE -> text
+        Portnums.PortNum.WAYPOINT_APP_VALUE -> waypoint?.let {
+            getString(R.string.waypoint_received, it.name)
+        }
+        Portnums.PortNum.NODE_STATUS_APP_VALUE -> "Status: $statusMessageText"
+        else -> null
     }
 
     override fun onCreate() {
@@ -610,7 +609,7 @@ class MeshService : Service(), Logging {
     // END OF MODEL
     //
 
-    private val deviceVersion get() = DeviceVersion(myNodeInfo?.firmwareVersion ?: "")
+    private val deviceVersion get() = DeviceVersion(myNodeInfo?.firmwareVersion.orEmpty())
     private val appVersion get() = BuildConfig.VERSION_CODE
     private val minAppVersion get() = myNodeInfo?.minAppVersion ?: 0
 
@@ -1004,11 +1003,14 @@ class MeshService : Service(), Logging {
         val beaconing = getPreferences(this)
             .getBoolean(PREF_STRESSTEST_ENABLED, false)
 
-        if(beaconing || p.dataType == Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE){
+        if (beaconing || p.dataType == Portnums.PortNum.TEXT_MESSAGE_COMPRESSED_APP_VALUE) {
             priority = MeshPacket.Priority.ALERT
         }
 
-        return newMeshPacketTo(p.to!!).buildMeshPacket(
+        val destination = requireNotNull(p.to) { "DataPacket destination is required" }
+        val payloadBytes = requireNotNull(p.bytes) { "DataPacket payload is required" }
+
+        return newMeshPacketTo(destination).buildMeshPacket(
             id = p.id,
             wantAck = true,
             hopLimit = p.hopLimit,
@@ -1016,10 +1018,10 @@ class MeshService : Service(), Logging {
             priority = priority
         ) {
             portnumValue = p.dataType
-            payload = ByteString.copyFrom(p.bytes)
+            payload = ByteString.copyFrom(payloadBytes)
 
-            if (p.replyId != null && p.replyId != 0) {
-                this.replyId = p.replyId!!
+            p.replyId?.takeIf { it != 0 }?.let {
+                this.replyId = it
             }
         }
     }
@@ -1568,7 +1570,7 @@ class MeshService : Service(), Logging {
     }
 
     private fun handleReceivedNodeStatus(fromNum: Int, s: MeshProtos.StatusMessage) {
-        updateNodeInfo(fromNum) { it.nodeStatus = s.status ?: "" }
+        updateNodeInfo(fromNum) { it.nodeStatus = s.status.orEmpty() }
     }
 
     // Update our DB of users based on someone sending out a Telemetry subpacket
@@ -1866,11 +1868,11 @@ class MeshService : Service(), Logging {
                         } ?: run {
 
                             //todo fixme, do it more efficiently
-                            val requestId = packet.decoded.requestId
-                            val ourTraceRequest = ourTracerouteRequests[requestId]
+                            val decodedRequestId = packet.decoded.requestId
+                            val ourTraceRequest = ourTracerouteRequests[decodedRequestId]
 
-                            val processedContact = dbImportContactMap.remove(requestId)
-                            val deletedNode = autoDeleteMap.remove(requestId)
+                            val processedContact = dbImportContactMap.remove(decodedRequestId)
+                            val deletedNode = autoDeleteMap.remove(decodedRequestId)
 
                             if (DbImportState.importInProgress()){
 
@@ -2129,7 +2131,7 @@ class MeshService : Service(), Logging {
         val currentStats = localStats
         val currentStatsUpdatedAtMillis = localStatsUpdatedAtMillis
         if (
-            !currentSummary.isNullOrBlank() &&
+            currentSummary.isNotBlank() &&
             (previousSummary == null || !previousSummary.equals(currentSummary))
         ) {
             previousSummary = currentSummary
@@ -2505,19 +2507,20 @@ class MeshService : Service(), Logging {
             insertMeshLog(packetToSave)
 
             // This was our config request
-            if (newMyNodeInfo == null || newNodes.isEmpty()) {
+            val localMyNodeInfo = newMyNodeInfo
+            if (localMyNodeInfo == null || newNodes.isEmpty()) {
                 errormsg("Did not receive a valid config")
             } else {
                 val previousNodes = nodeDBbyNodeNum.toMap()
                 discardNodeDB()
                 debug("Installing new node DB")
-                myNodeInfo = newMyNodeInfo
+                myNodeInfo = localMyNodeInfo
 
                 newNodes.forEach { installNodeInfo(it, previousNodes[it.num]) }
                 newNodes.clear() // Just to save RAM ;-)
 
                 serviceScope.handledLaunch {
-                    radioConfigRepository.installNodeDB(myNodeInfo!!, nodeDBbyNodeNum.values.toList())
+                    radioConfigRepository.installNodeDB(localMyNodeInfo, nodeDBbyNodeNum.values.toList())
                 }
 
                 haveNodeDB = true // we now have nodes from real hardware
@@ -2800,14 +2803,18 @@ class MeshService : Service(), Logging {
         override fun send(p: DataPacket) {
             toRemoteExceptions {
                 if (p.id == 0) p.id = generatePacketId()
+                val payloadBytes = requireNotNull(p.bytes) { "DataPacket payload is required" }
 
-                info("sendData dest=${p.to}, id=${p.id} <- ${p.bytes!!.size} bytes (connectionState=$connectionState)")
+                info(
+                    "sendData dest=${p.to}, id=${p.id} <- " +
+                        "${payloadBytes.size} bytes (connectionState=$connectionState)"
+                )
 
                 if (p.dataType == 0) {
                     throw Exception("Port numbers must be non-zero!") // we are now more strict
                 }
 
-                if (p.bytes.size >= MeshProtos.Constants.DATA_PAYLOAD_LEN.number) {
+                if (payloadBytes.size >= MeshProtos.Constants.DATA_PAYLOAD_LEN.number) {
                     p.status = MessageStatus.ERROR
                     throw RemoteException("Message too long")
                 } else {
@@ -2969,6 +2976,9 @@ class MeshService : Service(), Logging {
         }
         override fun requestUserInfo(destNum: Int) = toRemoteExceptions {
             if (destNum != myNodeNum) {
+                val localUser = requireNotNull(nodeDBbyNodeNum[myNodeNum]?.user) {
+                    "Local node user info is required"
+                }
                 sendToRadio(newMeshPacketTo(destNum
                 ).buildMeshPacket(
                     wantAck = true,
@@ -2976,7 +2986,7 @@ class MeshService : Service(), Logging {
                 ) {
                     portnumValue = Portnums.PortNum.NODEINFO_APP_VALUE
                     wantResponse = true
-                    payload = nodeDBbyNodeNum[myNodeNum]!!.user.toByteString()
+                    payload = localUser.toByteString()
                 })
             }
         }
