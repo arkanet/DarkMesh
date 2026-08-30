@@ -17,31 +17,25 @@
 
 package com.geeksville.mesh.discovery
 
+import com.geeksville.mesh.database.entity.DiscoveredNodeEntity
 import com.geeksville.mesh.model.Node
 
-data class DiscoveryMapLink(
-    val from: Node,
-    val to: Node,
-    val snr: Float?,
-    val isDirect: Boolean,
-)
+internal fun DiscoveredNodeEntity.toDiscoveryMapNode(knownNodeByNum: Map<Int, Node>): Node {
+    knownNodeByNum[nodeNum.toInt()]?.takeIf { it.hasDiscoveryMapPosition() }?.let { return it }
 
-data class DiscoveryNodeListItem(
-    val nodeNum: Long,
-    val longName: String,
-    val snr: Float?,
-    val distanceMeters: Int? = null,
-)
+    return Node(
+        num = nodeNum.toInt(),
+        liteNodeId = nodeId,
+        liteDefaultName = defaultName ?: nodeId,
+        liteLongName = longName ?: defaultName ?: nodeId,
+        liteShortName = shortName ?: nodeId.takeLast(DEFAULT_SHORT_NAME_LENGTH),
+        liteLatitude = latitude,
+        liteLongitude = longitude,
+    )
+}
 
-data class DiscoveryNodeList(
-    val presetName: String,
-    val originName: String,
-    val nodes: List<DiscoveryNodeListItem>,
-)
+internal fun Node.hasDiscoveryMapPosition(): Boolean {
+    return validPosition != null || validLiteNode
+}
 
-data class DiscoveryMap(
-    val localNode: Node?,
-    val nodes: List<Node>,
-    val links: List<DiscoveryMapLink>,
-    val nodeList: DiscoveryNodeList,
-)
+private const val DEFAULT_SHORT_NAME_LENGTH = 4

@@ -27,6 +27,7 @@ import com.geeksville.mesh.database.entity.DiscoveryNeighborType
 import com.geeksville.mesh.database.entity.DiscoveryPresetResultEntity
 import com.geeksville.mesh.database.entity.DiscoverySessionEntity
 import com.geeksville.mesh.database.entity.DiscoverySessionStatus
+import com.geeksville.mesh.database.entity.NodeEntity
 import com.geeksville.mesh.database.entity.NodeRegistry
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -39,6 +40,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.meshtastic.proto.ChannelProtos
 import org.meshtastic.proto.ConfigProtos
+import org.meshtastic.proto.MeshProtos
+import org.meshtastic.proto.user
 
 @RunWith(AndroidJUnit4::class)
 class DiscoveryDaoTest {
@@ -60,7 +63,9 @@ class DiscoveryDaoTest {
     }
 
     @Test
-    fun insertSessionResultAndNodesWithoutMutatingNodeRegistry() = runBlocking {
+    fun insertSessionResultAndNodesWithoutMutatingNodeDbOrRegistry() = runBlocking {
+        val nodeDbNode = nodeEntity(num = 2, longName = "NodeDB Node")
+        database.nodeInfoDao().upsert(nodeDbNode)
         database.nodeRegistryDao().upsert(
             NodeRegistry(
                 nodeId = "!00000002",
@@ -94,11 +99,15 @@ class DiscoveryDaoTest {
 
         val session = discoveryDao.getSessions().first().single()
         val nodes = discoveryDao.getDiscoveredNodes(resultId)
+        val nodeDbStored = database.nodeInfoDao().nodeDBbyNum().first().getValue(2).node
         val registryNode = database.nodeRegistryDao().getById("!00000002")
 
         assertEquals(sessionId, session.id)
         assertEquals("LONG_FAST", discoveryDao.getPresetResults(sessionId).single().presetName)
         assertEquals("Discovery Node", nodes.single().longName)
+        assertEquals("NodeDB Node", nodeDbStored.longName)
+        assertEquals(45.0, nodeDbStored.latitude, 0.0)
+        assertEquals(9.0, nodeDbStored.longitude, 0.0)
         assertEquals("Registry Node", registryNode?.longName)
         assertArrayEquals(publicKey, registryNode?.publicKey)
     }
@@ -122,6 +131,30 @@ class DiscoveryDaoTest {
 
         assertTrue(discoveryDao.getPresetResults(sessionId).isEmpty())
         assertTrue(discoveryDao.getDiscoveredNodes(resultId).isEmpty())
+    }
+
+    @Test
+    fun deletingSessionsCascadesDiscoveryRowsWithoutClearingNodeDb() = runBlocking {
+        database.nodeInfoDao().upsert(nodeEntity(num = 4, longName = "Persistent Node"))
+        val firstSessionId = discoveryDao.insertSession(discoverySession())
+        val firstResultId = discoveryDao.insertPresetResultWithNodes(
+            result = discoveryPresetResult(firstSessionId),
+            nodes = listOf(discoveredNode(nodeNum = 4)),
+        )
+        val secondSessionId = discoveryDao.insertSession(discoverySession())
+        val secondResultId = discoveryDao.insertPresetResultWithNodes(
+            result = discoveryPresetResult(secondSessionId),
+            nodes = listOf(discoveredNode(nodeNum = 5)),
+        )
+
+        discoveryDao.deleteSessions(listOf(firstSessionId, secondSessionId))
+
+        val nodeDbStored = database.nodeInfoDao().nodeDBbyNum().first().getValue(4).node
+        assertTrue(discoveryDao.getPresetResults(firstSessionId).isEmpty())
+        assertTrue(discoveryDao.getPresetResults(secondSessionId).isEmpty())
+        assertTrue(discoveryDao.getDiscoveredNodes(firstResultId).isEmpty())
+        assertTrue(discoveryDao.getDiscoveredNodes(secondResultId).isEmpty())
+        assertEquals("Persistent Node", nodeDbStored.longName)
     }
 
     private fun discoverySession() = DiscoverySessionEntity(
@@ -154,4 +187,35 @@ class DiscoveryDaoTest {
         infrastructureCount = 0,
         packetCount = 3,
     )
+
+    private fun discoveredNode(nodeNum: Long) = DiscoveredNodeEntity(
+        presetResultId = 0,
+        nodeNum = nodeNum,
+        nodeId = "!%08x".format(nodeNum),
+        neighborType = DiscoveryNeighborType.DIRECT,
+    )
+
+    private fun nodeEntity(
+        num: Int,
+        longName: String,
+    ): NodeEntity {
+        return NodeEntity(
+            num = num,
+            user = user {
+                id = "!%08x".format(num)
+                this.longName = longName
+                shortName = longName.take(3)
+                hwModel = MeshProtos.HardwareModel.ANDROID_SIM
+            },
+            longName = longName,
+            shortName = longName.take(3),
+        ).apply {
+            setPosition(
+                MeshProtos.Position.newBuilder()
+                    .setLatitudeI(450_000_000)
+                    .setLongitudeI(90_000_000)
+                    .build()
+            )
+        }
+    }
 }

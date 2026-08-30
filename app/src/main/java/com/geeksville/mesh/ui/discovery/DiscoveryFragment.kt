@@ -104,6 +104,7 @@ private fun DiscoveryScreen(
     viewModel: LocalMeshDiscoveryViewModel = hiltViewModel(),
 ) {
     val selectedReport by viewModel.selectedReport.collectAsStateWithLifecycle()
+    val nodesUiState by uiViewModel.nodesUiState.collectAsStateWithLifecycle()
     var selectedNodeList by remember { mutableStateOf<DiscoveryNodeList?>(null) }
 
     DiscoveryEventCollectors(
@@ -112,7 +113,13 @@ private fun DiscoveryScreen(
         onNodeList = { selectedNodeList = it },
     )
 
-    selectedNodeList?.let { DiscoveryNodeListDialog(it) { selectedNodeList = null } }
+    selectedNodeList?.let {
+        DiscoveryNodeListDialog(
+            nodeList = it,
+            distanceUnits = nodesUiState.distanceUnits,
+            onDismiss = { selectedNodeList = null },
+        )
+    }
 
     val report = selectedReport
     if (report != null) {

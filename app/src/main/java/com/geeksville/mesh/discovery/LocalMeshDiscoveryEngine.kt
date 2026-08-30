@@ -145,6 +145,7 @@ class LocalMeshDiscoveryEngine @Inject constructor(
             nodes = nodes,
             localNode = localMapNode,
             localNodeNum = localNodeNum ?: localMapNode?.num?.toLong(),
+            knownNodeByNum = radioConfigRepository.nodeDBbyNum.value,
         )
     }
 
@@ -167,6 +168,7 @@ class LocalMeshDiscoveryEngine @Inject constructor(
                     nodes = nodes,
                     localNode = localMapNode,
                     localNodeNum = originNodeNum,
+                    knownNodeByNum = radioConfigRepository.nodeDBbyNum.value,
                 ),
             )
         }.sortedWith(

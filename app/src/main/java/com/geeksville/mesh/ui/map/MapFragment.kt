@@ -124,11 +124,6 @@ import org.osmdroid.views.overlay.infowindow.InfoWindow
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import java.io.File
 import java.text.DateFormat
-import kotlin.math.asin
-import kotlin.math.cos
-import kotlin.math.pow
-import kotlin.math.sin
-import kotlin.math.sqrt
 
 private const val TRACE_COLOR_FORWARD = android.graphics.Color.BLUE
 private const val TRACE_COLOR_BACK = android.graphics.Color.RED
@@ -217,64 +212,6 @@ private fun cacheManagerCallback(
     }
 }
 
-data class MapSegment(
-    val from: GeoPoint,
-    val to: GeoPoint,
-    val lineColor: Int
-)
-
-@Suppress("DEPRECATION", "UsePropertyAccessSyntax")
-fun MapSegment.toPolyline(): Polyline =
-    Polyline().apply {
-        setPoints(listOf(from, to))
-        setColor(lineColor)
-        width = 6f
-        isGeodesic = true
-    }
-
-
-@Suppress("ReplaceJavaStaticMethodWithKotlinAnalog")
-fun GeoPoint.offsetMeters(
-    meters: Double,
-    bearingDegrees: Double
-): GeoPoint {
-    val earthRadius = 6_378_137.0 // metri
-    val bearingRad = Math.toRadians(bearingDegrees)
-
-    val latRad = Math.toRadians(latitude)
-    val lonRad = Math.toRadians(longitude)
-
-    val newLat = Math.asin(
-        Math.sin(latRad) * Math.cos(meters / earthRadius) +
-                Math.cos(latRad) * Math.sin(meters / earthRadius) * Math.cos(bearingRad)
-    )
-
-    val newLon = lonRad + Math.atan2(
-        Math.sin(bearingRad) * Math.sin(meters / earthRadius) * Math.cos(latRad),
-        Math.cos(meters / earthRadius) - Math.sin(latRad) * Math.sin(newLat)
-    )
-
-    return GeoPoint(
-        Math.toDegrees(newLat),
-        Math.toDegrees(newLon)
-    )
-}
-
-@Suppress("ReplaceJavaStaticMethodWithKotlinAnalog")
-fun bearing(from: GeoPoint, to: GeoPoint): Double {
-    val lat1 = Math.toRadians(from.latitude)
-    val lat2 = Math.toRadians(to.latitude)
-    val dLon = Math.toRadians(to.longitude - from.longitude)
-
-    val y = Math.sin(dLon) * Math.cos(lat2)
-    val x = Math.cos(lat1) * Math.sin(lat2) -
-            Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon)
-
-    return (Math.toDegrees(Math.atan2(y, x)) + 360) % 360
-}
-
-
-
 fun MapView.drawTraceroute(trace: TraceRouteMap) {
     overlays.removeAll { it is Polyline || it is Marker }
 
@@ -341,131 +278,6 @@ fun MapView.drawDiscovery(discovery: DiscoveryMap) {
 
     invalidate()
 }
-
-
-fun totalDistanceKm(nodes: List<Node>): Double {
-    fun haversine(a: GeoPoint, b: GeoPoint): Double {
-        val r = 6371.0 // km
-        val dLat = Math.toRadians(b.latitude - a.latitude)
-        val dLon = Math.toRadians(b.longitude - a.longitude)
-
-        val lat1 = Math.toRadians(a.latitude)
-        val lat2 = Math.toRadians(b.latitude)
-
-        val h = sin(dLat / 2).pow(2) +
-                cos(lat1) * cos(lat2) *
-                sin(dLon / 2).pow(2)
-
-        return 2 * r * asin(sqrt(h))
-    }
-
-    return nodes
-        .mapNotNull { node ->
-            node.validPosition?.let { GeoPoint(node.latitude, node.longitude) } }
-        .zipWithNext()
-        .sumOf { (a, b) -> haversine(a, b) }
-}
-
-private fun validCoordinates(lat: Double, lon: Double): Boolean {
-    return !lat.isNaN() && !lon.isNaN()
-}
-
-
-private fun Node.toGeoPointOrNull(): GeoPoint? = when {
-    validPosition != null -> GeoPoint(latitude, longitude)
-    validLiteNode && liteLatitude != null && liteLongitude != null -> GeoPoint(liteLatitude, liteLongitude)
-    else -> null
-}
-
-@Suppress("SameParameterValue")
-private fun buildSegmentForNeighbor(
-    fromNode: Node,
-    toNode: Node,
-    color: Int,
-    offsetMeters: Double,
-    side: Int,
-): MapSegment? {
-    val rawFrom = fromNode.toGeoPointOrNull() ?: return null
-    val rawTo = toNode.toGeoPointOrNull() ?: return null
-
-    if (!validCoordinates(rawFrom.latitude, rawFrom.longitude) ||
-        !validCoordinates(rawTo.latitude, rawTo.longitude)
-    ) {
-        return null
-    }
-
-    if (offsetMeters == 0.0) {
-        return MapSegment(
-            from = rawFrom,
-            to = rawTo,
-            lineColor = color,
-        )
-    }
-
-    val (from, to) =
-        if (rawFrom.latitude < rawTo.latitude) rawFrom to rawTo
-        else rawTo to rawFrom
-
-    val brg = bearing(from, to)
-    val perpendicular = brg + (90 * side)
-
-    return MapSegment(
-        from = rawFrom.offsetMeters(offsetMeters, perpendicular),
-        to = rawTo.offsetMeters(offsetMeters, perpendicular),
-        lineColor = color,
-    )
-}
-
-fun buildSegmentsForTraceroute(
-    nodes: List<Node>,
-    color: Int,
-    offsetMeters: Double,
-    side: Int
-): List<MapSegment> =
-    nodes.zipWithNext().mapNotNull { (a, b) ->
-
-        var latA = Double.NaN
-        var lonA = Double.NaN
-
-        var latB = Double.NaN
-        var lonB = Double.NaN
-
-        if (a.validPosition != null) {
-            latA = a.latitude
-            lonA = a.longitude
-        } else if (a.validLiteNode && a.liteLatitude != null && a.liteLongitude != null) {
-            latA = a.liteLatitude
-            lonA = a.liteLongitude
-        }
-
-        if (b.validPosition != null) {
-            latB = b.latitude
-            lonB = b.longitude
-        } else if (b.validLiteNode && b.liteLatitude != null && b.liteLongitude != null) {
-            latB = b.liteLatitude
-            lonB = b.liteLongitude
-        }
-
-        if(!validCoordinates(latA, lonA) || !validCoordinates(latB, lonB)){
-            return@mapNotNull null
-        }
-
-        val rawFrom = GeoPoint(latA, lonA)
-        val rawTo = GeoPoint(latB, lonB)
-
-        val (from, to) =
-            if (rawFrom.latitude < rawTo.latitude) rawFrom to rawTo
-            else rawTo to rawFrom
-
-        val brg = bearing(from, to)
-        val perpendicular = brg + (90 * side)
-
-        MapSegment(
-            from = rawFrom.offsetMeters(offsetMeters, perpendicular),
-            to = rawTo.offsetMeters(offsetMeters, perpendicular),
-            lineColor = color
-        )
-    }
 
 
 fun GeoPoint.offset(latOffset: Double, lonOffset: Double) =
@@ -1042,6 +854,7 @@ fun MapView(
             if (mapMode is MapMode.NeighborDiscovery && showNeighborDiscoveryList) {
                 NeighborDiscoveryDialog(
                     discovery = (mapMode as MapMode.NeighborDiscovery).discovery.source,
+                    distanceUnits = model.config.display.units.number,
                     onDismiss = {
                         showNeighborDiscoveryList = false
                     },
@@ -1051,6 +864,7 @@ fun MapView(
             if (mapMode is MapMode.Discovery && showDiscoveryList) {
                 DiscoveryNodeListDialog(
                     nodeList = (mapMode as MapMode.Discovery).discovery.nodeList,
+                    distanceUnits = model.config.display.units.number,
                     onDismiss = {
                         showDiscoveryList = false
                     },

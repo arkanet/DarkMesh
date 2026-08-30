@@ -24,12 +24,9 @@ import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.text.style.StyleSpan
-import android.util.Log
 import com.geeksville.mesh.discovery.DiscoveryMap
 import com.geeksville.mesh.database.NodeRepository
 import com.geeksville.mesh.database.entity.NodeRegistry
-import com.geeksville.mesh.database.entity.isValidForTraceMap
-import com.geeksville.mesh.util.AppUtil.hexIdToNodeNum
 import org.meshtastic.proto.MeshProtos
 import org.meshtastic.proto.MeshProtos.RouteDiscovery
 import org.meshtastic.proto.Portnums
@@ -108,96 +105,23 @@ fun MeshProtos.MeshPacket.getTracerouteResponse(
     getUser: (nodeNum: Int) -> String,
 ): String? = fullRouteDiscovery?.getTracerouteResponse(getUser)
 
-
-fun evaluateTracerouteMapAvailability(traceroute: String?,
-                                      nodeDb: NodeRepository,
-                                      nodeRegistryMap: Map<String, NodeRegistry>) : TraceRouteMap? {
-
-    val backtoUs = traceroute?.split("Route traced back to us:")
-
-    try {
-
-        val traceBackList = parseNodeFromTraceroute(
-            backtoUs,
-            1,
-            nodeDb,
-            nodeRegistryMap
-        )
-
-        val traceForwardList = parseNodeFromTraceroute(
-            backtoUs,
-            0,
-            nodeDb,
-            nodeRegistryMap
-        )
-
-        if(traceForwardList.isNotEmpty() &&
-            traceBackList.isNotEmpty()){
-
-            return TraceRouteMap(
-                traceForwardList = traceForwardList,
-                traceBackList = traceBackList,
-                sourceTrace = traceroute
-            )
-        }
-    } catch (e : Exception){
-       Log.e("RouteDiscovery", "Could not parse traceroute for map visualization! ${e.message}")
-    }
-
-    return null
+fun evaluateTracerouteMapAvailability(
+    traceroute: String?,
+    nodeDb: NodeRepository,
+    nodeRegistryMap: Map<String, NodeRegistry>,
+): TraceRouteMap? {
+    return evaluateTracerouteMapAvailability(
+        traceroute = traceroute,
+        nodesByNum = nodeDb.nodeDBbyNum.value,
+        nodeRegistryMap = nodeRegistryMap,
+    )
 }
 
-private fun parseNodeFromTraceroute(tracedNodes: List<String>?,
-                                    searchIndex: Int ,
-                                    nodeDb: NodeRepository?,
-                                    nodeRegistrMap: Map<String, NodeRegistry>
-                                    ): ArrayList<Node> {
-
-    val targetList = ArrayList<Node>()
-
-    tracedNodes?.get(searchIndex)?.trim()?.split("■")?.let { tracers ->
-        for (node in tracers) {
-
-            val trimmedNode = node.trim()
-            if (trimmedNode.isBlank()) continue
-
-            val user = nodeDb?.getUserLongNameContains(trimmedNode)
-
-            if (user != null && user.validPosition != null) {
-                // valid user and valid coords
-                targetList.add(user)
-            } else {
-                // fallback on backupNode if exists
-                nodeRegistrMap.values
-                    .filter {
-                        it.isValidForTraceMap()
-                    }.firstOrNull {
-                        val defaultName = it.defaultName
-                        val longName = it.longName
-                        defaultName != null && longName != null &&
-                            (trimmedNode.contains(defaultName) || trimmedNode.contains(longName))
-                    }?.let { backupNode ->
-                        val nodeNum = hexIdToNodeNum(backupNode.nodeId)
-                        val latitudeI = backupNode.latitudeI ?: return@let
-                        val longitudeI = backupNode.longitudeI ?: return@let
-                        targetList.add(
-                            Node(
-                                num = nodeNum,
-                                liteNodeId = backupNode.nodeId,
-                                liteDefaultName = backupNode.defaultName,
-                                liteLongName = backupNode.longName,
-                                liteShortName = backupNode.shortName,
-                                liteLatitude = latitudeI * 1e-7,
-                                liteLongitude = longitudeI * 1e-7,
-                            )
-                        )
-                    }
-            }
-        }
-    }
-
-    return targetList
-}
+internal fun evaluateTracerouteMapAvailability(
+    traceroute: String?,
+    nodesByNum: Map<Int, Node>,
+    nodeRegistryMap: Map<String, NodeRegistry>,
+): TraceRouteMap? = evaluateTracerouteMapAvailabilityFromNodes(traceroute, nodesByNum, nodeRegistryMap)
 
 fun colorizeTracerouteResponse(input: String?): SpannableString {
     if (input == null) return SpannableString("")

@@ -19,6 +19,8 @@ package com.geeksville.mesh.ui.discovery
 
 import com.geeksville.mesh.discovery.DiscoveryScanState
 import com.geeksville.mesh.model.ChannelOption
+import com.geeksville.mesh.util.toDistanceString
+import org.meshtastic.proto.ConfigProtos.Config.DisplayConfig
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -56,6 +58,13 @@ internal fun Float?.formatPercent(): String {
 
 internal fun Int?.formatCount(): String {
     return this?.toString() ?: "-"
+}
+
+internal fun Int?.formatDistanceMeters(displayUnits: Int): String? {
+    val meters = this?.takeIf { it > 0 } ?: return null
+    val system = DisplayConfig.DisplayUnits.forNumber(displayUnits)
+        ?: DisplayConfig.DisplayUnits.METRIC
+    return meters.toDistanceString(system)
 }
 
 internal fun Long.formatDiscoveryDuration(): String {

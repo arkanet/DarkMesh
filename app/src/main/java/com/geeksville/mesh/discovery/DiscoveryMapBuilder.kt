@@ -31,7 +31,7 @@ internal object DiscoveryMapBuilder {
         if (nodes.isEmpty()) return null
 
         val directNodes = nodes.filter { it.isZeroHopDirectDiscoveryNode() }
-        val mapNodes = directNodes.map { it.toMapNode(knownNodeByNum) }
+        val mapNodes = directNodes.map { it.toDiscoveryMapNode(knownNodeByNum) }
         val mapNodeByNum = (listOfNotNull(localNode) + mapNodes)
             .associateBy { it.num.toLong() }
         val localMapNode = localNodeNum
@@ -61,27 +61,12 @@ internal object DiscoveryMapBuilder {
                 nodes = nodes,
                 localNode = localNode,
                 localNodeNum = localNodeNum,
+                knownNodeByNum = knownNodeByNum,
             ),
-        )
-    }
-
-    private fun DiscoveredNodeEntity.toMapNode(knownNodeByNum: Map<Int, Node>): Node {
-        knownNodeByNum[nodeNum.toInt()]?.takeIf { it.hasMapPosition() }?.let { return it }
-
-        return Node(
-            num = nodeNum.toInt(),
-            liteNodeId = nodeId,
-            liteDefaultName = defaultName ?: nodeId,
-            liteLongName = longName ?: defaultName ?: nodeId,
-            liteShortName = shortName ?: nodeId.takeLast(DEFAULT_SHORT_NAME_LENGTH),
-            liteLatitude = latitude,
-            liteLongitude = longitude,
         )
     }
 
     private fun Node.hasMapPosition(): Boolean {
         return validPosition != null || validLiteNode
     }
-
-    private const val DEFAULT_SHORT_NAME_LENGTH = 4
 }

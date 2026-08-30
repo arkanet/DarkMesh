@@ -20,7 +20,9 @@ package com.geeksville.mesh.discovery
 import com.geeksville.mesh.database.entity.DiscoveredNodeEntity
 import com.geeksville.mesh.database.entity.DiscoveryNeighborType
 import com.geeksville.mesh.model.Node
+import com.geeksville.mesh.util.latLongToMeter
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.meshtastic.proto.MeshProtos
 
@@ -104,6 +106,11 @@ class DiscoveryMapBuilderTest {
         assertEquals(LOCAL_NODE, link.from.num)
         assertEquals(NODE_B.toInt(), link.to.num)
         assertEquals(listOf(NODE_B, NODE_G), map.nodeList.nodes.map { it.nodeNum })
+        assertEquals(
+            expectedDistanceMeters(LOCAL_LATITUDE, LOCAL_LONGITUDE, NODE_B_LATITUDE, NODE_B_LONGITUDE),
+            map.nodeList.nodes.first { it.nodeNum == NODE_B }.distanceMeters,
+        )
+        assertNull(map.nodeList.nodes.first { it.nodeNum == NODE_G }.distanceMeters)
     }
 
     @Test
@@ -127,6 +134,29 @@ class DiscoveryMapBuilderTest {
 
         val link = map.links.single()
         assertEquals(NODE_B.toInt(), link.to.num)
+        assertEquals(
+            expectedDistanceMeters(LOCAL_LATITUDE, LOCAL_LONGITUDE, NODE_B_LATITUDE, NODE_B_LONGITUDE),
+            map.nodeList.nodes.single().distanceMeters,
+        )
+    }
+
+    @Test
+    fun preservesStoredLocalDiscoveryDistanceInNodeList() {
+        val nodeList = DiscoveryNodeListBuilder.build(
+            presetName = PRESET_NAME,
+            localNode = null,
+            localNodeNum = LOCAL_NODE.toLong(),
+            nodes = listOf(
+                discoveredNode(
+                    nodeNum = NODE_B,
+                    neighborType = DiscoveryNeighborType.DIRECT,
+                    hopCount = DIRECT_HOPS,
+                    distanceMeters = STORED_DISTANCE_METERS.toDouble(),
+                ),
+            ),
+        )
+
+        assertEquals(STORED_DISTANCE_METERS, nodeList.nodes.single().distanceMeters)
     }
 
     private fun positionedNode(
@@ -148,6 +178,7 @@ class DiscoveryMapBuilderTest {
         longitude: Double? = null,
         viaNodeNum: Long? = null,
         hopCount: Int? = null,
+        distanceMeters: Double? = null,
         snr: Float? = DEFAULT_SNR,
         neighborSnr: Float? = DEFAULT_SNR,
     ) = DiscoveredNodeEntity(
@@ -160,11 +191,21 @@ class DiscoveryMapBuilderTest {
         neighborType = neighborType,
         latitude = latitude,
         longitude = longitude,
+        distanceMeters = distanceMeters,
         hopCount = hopCount,
         snr = snr,
         viaNodeNum = viaNodeNum,
         neighborSnr = neighborSnr,
     )
+
+    private fun expectedDistanceMeters(
+        fromLatitude: Double,
+        fromLongitude: Double,
+        toLatitude: Double,
+        toLongitude: Double,
+    ): Int {
+        return latLongToMeter(fromLatitude, fromLongitude, toLatitude, toLongitude).toInt()
+    }
 
     private companion object {
         const val PRESET_NAME = "TINY_FAST"
@@ -191,6 +232,7 @@ class DiscoveryMapBuilderTest {
         const val DIRECT_SNR = -12.0f
         const val MESH_NEIGHBOR_SNR = 4.5f
         const val FAR_MESH_SNR = 8.0f
+        const val STORED_DISTANCE_METERS = 1234
         const val COORDINATE_SCALE = 1e7
     }
 }

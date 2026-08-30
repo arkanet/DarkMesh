@@ -48,13 +48,14 @@ import com.geeksville.mesh.model.neighborDiscoverySnrColor
 @Composable
 fun DiscoveryNodeListDialog(
     nodeList: DiscoveryNodeList,
+    distanceUnits: Int = 0,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {},
         text = {
-            DiscoveryNodeListContent(nodeList = nodeList)
+            DiscoveryNodeListContent(nodeList = nodeList, distanceUnits = distanceUnits)
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
@@ -70,6 +71,7 @@ fun DiscoveryNodeListDialog(
 @Composable
 fun DiscoveryNodeListContent(
     nodeList: DiscoveryNodeList,
+    distanceUnits: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -77,7 +79,7 @@ fun DiscoveryNodeListContent(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         DiscoveryNodeListHeader(nodeList = nodeList)
-        DiscoveryNodeListCard(nodeList = nodeList)
+        DiscoveryNodeListCard(nodeList = nodeList, distanceUnits = distanceUnits)
     }
 }
 
@@ -108,7 +110,10 @@ private fun DiscoveryNodeListHeader(nodeList: DiscoveryNodeList) {
 }
 
 @Composable
-private fun DiscoveryNodeListCard(nodeList: DiscoveryNodeList) {
+private fun DiscoveryNodeListCard(
+    nodeList: DiscoveryNodeList,
+    distanceUnits: Int,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         backgroundColor = MaterialTheme.colors.onSurface.copy(alpha = LIST_CARD_ALPHA),
@@ -122,13 +127,16 @@ private fun DiscoveryNodeListCard(nodeList: DiscoveryNodeList) {
                 .padding(LIST_CARD_PADDING_DP.dp),
             verticalArrangement = Arrangement.spacedBy(NODE_LIST_ROW_SPACING_DP.dp),
         ) {
-            DiscoveryNodeListRows(nodeList = nodeList)
+            DiscoveryNodeListRows(nodeList = nodeList, distanceUnits = distanceUnits)
         }
     }
 }
 
 @Composable
-private fun DiscoveryNodeListRows(nodeList: DiscoveryNodeList) {
+private fun DiscoveryNodeListRows(
+    nodeList: DiscoveryNodeList,
+    distanceUnits: Int,
+) {
     if (nodeList.nodes.isEmpty()) {
         Text(
             text = stringResource(R.string.neighbor_discovery_no_neighbors),
@@ -137,21 +145,36 @@ private fun DiscoveryNodeListRows(nodeList: DiscoveryNodeList) {
             style = MaterialTheme.typography.body1,
         )
     } else {
-        nodeList.nodes.forEach { node -> DiscoveryNodeListRow(node) }
+        nodeList.nodes.forEach { node ->
+            DiscoveryNodeListRow(node = node, distanceUnits = distanceUnits)
+        }
     }
 }
 
 @Composable
-private fun DiscoveryNodeListRow(node: DiscoveryNodeListItem) {
+private fun DiscoveryNodeListRow(
+    node: DiscoveryNodeListItem,
+    distanceUnits: Int,
+) {
+    val distanceText = node.distanceMeters.formatDistanceMeters(distanceUnits)
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = node.longName,
+        Column(
             modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.body1,
-        )
+        ) {
+            Text(
+                text = node.longName,
+                style = MaterialTheme.typography.body1,
+            )
+            distanceText?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.caption,
+                )
+            }
+        }
         Text(
             text = formatNeighborDiscoverySnr(node.snr),
             color = Color(neighborDiscoverySnrColor(node.snr)),

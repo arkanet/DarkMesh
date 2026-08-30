@@ -26,6 +26,7 @@ internal object DiscoveryNodeListBuilder {
         nodes: List<DiscoveredNodeEntity>,
         localNode: Node?,
         localNodeNum: Long?,
+        knownNodeByNum: Map<Int, Node> = emptyMap(),
     ): DiscoveryNodeList {
         val originName = localNode?.discoveryListName()
             ?: localNodeNum?.let { "Local node ${formatNodeNum(it)}" }
@@ -44,10 +45,13 @@ internal object DiscoveryNodeListBuilder {
                         .thenBy { it.discoveryListName() }
                 )
                 .map {
+                    val discoveredNode = it.toDiscoveryMapNode(knownNodeByNum)
                     DiscoveryNodeListItem(
                         nodeNum = it.nodeNum,
                         longName = it.discoveryListName(),
                         snr = it.snr ?: it.neighborSnr,
+                        distanceMeters = it.distanceMeters?.toInt()
+                            ?: localNode?.distance(discoveredNode),
                     )
                 },
         )
