@@ -154,4 +154,7 @@ interface DiscoveryDao {
 
     @Query("DELETE FROM discovery_session WHERE id = :sessionId")
     suspend fun deleteSession(sessionId: Long)
+
+    @Query("DELETE FROM discovery_session WHERE id IN (:sessionIds)")
+    suspend fun deleteSessions(sessionIds: List<Long>)
 }

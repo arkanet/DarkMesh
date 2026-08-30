@@ -22,9 +22,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.AlertDialog
+import androidx.compose.material.Card
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
@@ -39,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.emp3r0r7.darkmesh.R
 import com.geeksville.mesh.discovery.DiscoveryNodeList
+import com.geeksville.mesh.discovery.DiscoveryNodeListItem
 import com.geeksville.mesh.model.formatNeighborDiscoverySnr
 import com.geeksville.mesh.model.neighborDiscoverySnrColor
 
@@ -73,6 +76,17 @@ fun DiscoveryNodeListContent(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        DiscoveryNodeListHeader(nodeList = nodeList)
+        DiscoveryNodeListCard(nodeList = nodeList)
+    }
+}
+
+@Composable
+private fun DiscoveryNodeListHeader(nodeList: DiscoveryNodeList) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Text(
             text = "Local Mesh Discovery",
             style = MaterialTheme.typography.h6,
@@ -90,43 +104,64 @@ fun DiscoveryNodeListContent(
                 textAlign = TextAlign.Center,
             )
         }
+    }
+}
+
+@Composable
+private fun DiscoveryNodeListCard(nodeList: DiscoveryNodeList) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = MaterialTheme.colors.onSurface.copy(alpha = LIST_CARD_ALPHA),
+        contentColor = MaterialTheme.colors.onSurface,
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = NODE_LIST_MAX_HEIGHT_DP.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .padding(LIST_CARD_PADDING_DP.dp),
             verticalArrangement = Arrangement.spacedBy(NODE_LIST_ROW_SPACING_DP.dp),
         ) {
-            if (nodeList.nodes.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.neighbor_discovery_no_neighbors),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.body1,
-                )
-            } else {
-                nodeList.nodes.forEach { node ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = node.longName,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.body1,
-                        )
-                        Text(
-                            text = formatNeighborDiscoverySnr(node.snr),
-                            color = Color(neighborDiscoverySnrColor(node.snr)),
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.body1,
-                        )
-                    }
-                }
-            }
+            DiscoveryNodeListRows(nodeList = nodeList)
         }
+    }
+}
+
+@Composable
+private fun DiscoveryNodeListRows(nodeList: DiscoveryNodeList) {
+    if (nodeList.nodes.isEmpty()) {
+        Text(
+            text = stringResource(R.string.neighbor_discovery_no_neighbors),
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.body1,
+        )
+    } else {
+        nodeList.nodes.forEach { node -> DiscoveryNodeListRow(node) }
+    }
+}
+
+@Composable
+private fun DiscoveryNodeListRow(node: DiscoveryNodeListItem) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = node.longName,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.body1,
+        )
+        Text(
+            text = formatNeighborDiscoverySnr(node.snr),
+            color = Color(neighborDiscoverySnrColor(node.snr)),
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.body1,
+        )
     }
 }
 
 private const val NODE_LIST_MAX_HEIGHT_DP = 360
 private const val NODE_LIST_ROW_SPACING_DP = 8
+private const val LIST_CARD_PADDING_DP = 12
+private const val LIST_CARD_ALPHA = 0.08f

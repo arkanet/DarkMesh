@@ -23,9 +23,10 @@ import com.geeksville.mesh.database.dao.DiscoveryDao
 import com.geeksville.mesh.model.ChannelOption
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -39,8 +40,10 @@ class LocalMeshDiscoveryViewModel @Inject constructor(
     val rankings = engine.rankings
     val currentSession = engine.currentSession
     val sessions = discoveryDao.getSessions()
-        .map { it.take(RECENT_SESSION_LIMIT) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _selectedReport = MutableStateFlow<DiscoveryReport?>(null)
+    val selectedReport = _selectedReport.asStateFlow()
 
     private val _mapEvents = MutableSharedFlow<DiscoveryMap>()
     val mapEvents = _mapEvents.asSharedFlow()
@@ -81,7 +84,28 @@ class LocalMeshDiscoveryViewModel @Inject constructor(
         }
     }
 
-    companion object {
-        private const val RECENT_SESSION_LIMIT = 10
+    fun requestReport(sessionId: Long) {
+        viewModelScope.launch {
+            val report = engine.buildDiscoveryReport(sessionId)
+            if (report == null) {
+                _messageEvents.emit("Discovery report unavailable")
+            } else {
+                _selectedReport.value = report
+            }
+        }
+    }
+
+    fun closeReport() {
+        _selectedReport.value = null
+    }
+
+    fun deleteSessions(sessionIds: Set<Long>) {
+        viewModelScope.launch {
+            engine.deleteDiscoverySessions(sessionIds)
+            if (_selectedReport.value?.session?.id in sessionIds) {
+                _selectedReport.value = null
+            }
+            _messageEvents.emit("Discovery report deleted")
+        }
     }
 }

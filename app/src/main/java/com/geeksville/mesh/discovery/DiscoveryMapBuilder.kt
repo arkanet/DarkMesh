@@ -18,40 +18,43 @@
 package com.geeksville.mesh.discovery
 
 import com.geeksville.mesh.database.entity.DiscoveredNodeEntity
-import com.geeksville.mesh.database.entity.DiscoveryNeighborType
 import com.geeksville.mesh.model.Node
 
-@Suppress("ReturnCount")
 internal object DiscoveryMapBuilder {
     fun build(
         nodes: List<DiscoveredNodeEntity>,
         localNode: Node?,
         localNodeNum: Long?,
         presetName: String = "",
+        knownNodeByNum: Map<Int, Node> = emptyMap(),
     ): DiscoveryMap? {
         if (nodes.isEmpty()) return null
 
-        val mapNodes = nodes.map { it.toMapNode() }
+        val directNodes = nodes.filter { it.isZeroHopDirectDiscoveryNode() }
+        val mapNodes = directNodes.map { it.toMapNode(knownNodeByNum) }
         val mapNodeByNum = (listOfNotNull(localNode) + mapNodes)
             .associateBy { it.num.toLong() }
-        val observedLinks = buildObservedDiscoveryLinks(nodes, localNodeNum)
-        val discoveryGraph = buildDiscoveryGraph(observedLinks)
-
-        val positionedObservedLinks = observedLinks.mapNotNull { link ->
-            link.toPositionedMapLink(mapNodeByNum)
-        }
-        val anchoredRouteLinks = buildAnchoredRouteLinks(
-            nodes = nodes,
-            localNodeNum = localNodeNum,
-            graph = discoveryGraph,
-            mapNodeByNum = mapNodeByNum,
-        )
+        val localMapNode = localNodeNum
+            ?.let(mapNodeByNum::get)
+            ?.takeIf { it.hasMapPosition() }
+        val links = localMapNode?.let { origin ->
+            directNodes.mapNotNull { discovered ->
+                val toNode = mapNodeByNum[discovered.nodeNum]?.takeIf { it.hasMapPosition() }
+                    ?: return@mapNotNull null
+                DiscoveryMapLink(
+                    from = origin,
+                    to = toNode,
+                    snr = discovered.snr,
+                    isDirect = true,
+                )
+            }
+        }.orEmpty()
 
         return DiscoveryMap(
-            localNode = localNode?.takeIf { it.hasMapPosition() },
+            localNode = localMapNode,
             nodes = (listOfNotNull(localNode) + mapNodes).distinctBy { it.num },
-            links = (positionedObservedLinks + anchoredRouteLinks).distinctBy {
-                "${it.from.num}:${it.to.num}:${it.isDirect}"
+            links = links.distinctBy {
+                "${it.from.num}:${it.to.num}"
             },
             nodeList = DiscoveryNodeListBuilder.build(
                 presetName = presetName,
@@ -62,124 +65,9 @@ internal object DiscoveryMapBuilder {
         )
     }
 
-    private fun buildObservedDiscoveryLinks(
-        nodes: List<DiscoveredNodeEntity>,
-        localNodeNum: Long?,
-    ): List<RawDiscoveryLink> {
-        val directLinks = localNodeNum?.let { originNodeNum ->
-            nodes.filter { it.neighborType == DiscoveryNeighborType.DIRECT }
-                .map { discovered ->
-                    RawDiscoveryLink(
-                        fromNum = originNodeNum,
-                        toNum = discovered.nodeNum,
-                        snr = discovered.snr,
-                        isDirect = true,
-                    )
-                }
-        }.orEmpty()
+    private fun DiscoveredNodeEntity.toMapNode(knownNodeByNum: Map<Int, Node>): Node {
+        knownNodeByNum[nodeNum.toInt()]?.takeIf { it.hasMapPosition() }?.let { return it }
 
-        val meshLinks = nodes.mapNotNull { discovered ->
-            val viaNodeNum = discovered.viaNodeNum ?: return@mapNotNull null
-            RawDiscoveryLink(
-                fromNum = viaNodeNum,
-                toNum = discovered.nodeNum,
-                snr = discovered.neighborSnr,
-                isDirect = false,
-            )
-        }
-
-        return directLinks + meshLinks
-    }
-
-    private fun RawDiscoveryLink.toPositionedMapLink(
-        mapNodeByNum: Map<Long, Node>,
-    ): DiscoveryMapLink? {
-        val fromNode = mapNodeByNum[fromNum]?.takeIf { it.hasMapPosition() } ?: return null
-        val toNode = mapNodeByNum[toNum]?.takeIf { it.hasMapPosition() } ?: return null
-        return DiscoveryMapLink(
-            from = fromNode,
-            to = toNode,
-            snr = snr,
-            isDirect = isDirect,
-        )
-    }
-
-    private fun buildAnchoredRouteLinks(
-        nodes: List<DiscoveredNodeEntity>,
-        localNodeNum: Long?,
-        graph: Map<Long, Set<Long>>,
-        mapNodeByNum: Map<Long, Node>,
-    ): List<DiscoveryMapLink> {
-        localNodeNum ?: return emptyList()
-
-        return nodes.filter { discovered ->
-            discovered.neighborType == DiscoveryNeighborType.MESH &&
-                discovered.hopCount?.let { it > MAX_DIRECT_HOPS } == true
-        }.mapNotNull { discovered ->
-            val routeEndpointsHavePosition = hasMapPosition(localNodeNum, mapNodeByNum) &&
-                hasMapPosition(discovered.nodeNum, mapNodeByNum)
-            if (routeEndpointsHavePosition) return@mapNotNull null
-
-            val path = shortestPath(localNodeNum, discovered.nodeNum, graph)
-                ?: return@mapNotNull null
-            val positionedPath = path.mapNotNull { nodeNum ->
-                mapNodeByNum[nodeNum]?.takeIf { it.hasMapPosition() }
-            }
-            val fromNode = positionedPath.firstOrNull() ?: return@mapNotNull null
-            val toNode = positionedPath.lastOrNull() ?: return@mapNotNull null
-            if (fromNode.num == toNode.num) return@mapNotNull null
-
-            DiscoveryMapLink(
-                from = fromNode,
-                to = toNode,
-                snr = discovered.snr,
-                isDirect = false,
-            )
-        }
-    }
-
-    private fun buildDiscoveryGraph(links: List<RawDiscoveryLink>): Map<Long, Set<Long>> {
-        val graph = mutableMapOf<Long, MutableSet<Long>>()
-        links.forEach { link ->
-            graph.getOrPut(link.fromNum) { mutableSetOf() } += link.toNum
-            graph.getOrPut(link.toNum) { mutableSetOf() } += link.fromNum
-        }
-        return graph
-    }
-
-    private fun shortestPath(
-        startNodeNum: Long,
-        endNodeNum: Long,
-        graph: Map<Long, Set<Long>>,
-    ): List<Long>? {
-        if (startNodeNum == endNodeNum) return listOf(startNodeNum)
-
-        val visited = mutableSetOf(startNodeNum)
-        val queue = ArrayDeque<List<Long>>()
-        queue.add(listOf(startNodeNum))
-
-        while (queue.isNotEmpty()) {
-            val path = queue.removeFirst()
-            val currentNodeNum = path.last()
-            graph[currentNodeNum].orEmpty().sorted().forEach { nextNodeNum ->
-                if (!visited.add(nextNodeNum)) return@forEach
-                val nextPath = path + nextNodeNum
-                if (nextNodeNum == endNodeNum) return nextPath
-                queue.add(nextPath)
-            }
-        }
-
-        return null
-    }
-
-    private fun hasMapPosition(
-        nodeNum: Long,
-        mapNodeByNum: Map<Long, Node>,
-    ): Boolean {
-        return mapNodeByNum[nodeNum]?.hasMapPosition() == true
-    }
-
-    private fun DiscoveredNodeEntity.toMapNode(): Node {
         return Node(
             num = nodeNum.toInt(),
             liteNodeId = nodeId,
@@ -196,12 +84,4 @@ internal object DiscoveryMapBuilder {
     }
 
     private const val DEFAULT_SHORT_NAME_LENGTH = 4
-    private const val MAX_DIRECT_HOPS = 1
 }
-
-private data class RawDiscoveryLink(
-    val fromNum: Long,
-    val toNum: Long,
-    val snr: Float?,
-    val isDirect: Boolean,
-)

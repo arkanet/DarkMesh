@@ -21,6 +21,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,7 +33,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.Button
@@ -46,8 +47,6 @@ import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.runtime.Composable
@@ -59,7 +58,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -76,8 +77,6 @@ import com.geeksville.mesh.model.UIViewModel
 import com.geeksville.mesh.ui.ScreenFragment
 import com.geeksville.mesh.ui.theme.AppTheme
 import dagger.hilt.android.AndroidEntryPoint
-import java.text.DateFormat
-import java.util.Date
 
 @AndroidEntryPoint
 class DiscoveryFragment : ScreenFragment("Discovery") {
@@ -104,33 +103,77 @@ private fun DiscoveryScreen(
     uiViewModel: UIViewModel,
     viewModel: LocalMeshDiscoveryViewModel = hiltViewModel(),
 ) {
-    val scanState by viewModel.scanState.collectAsStateWithLifecycle()
-    val currentSession by viewModel.currentSession.collectAsStateWithLifecycle()
-    val rankings by viewModel.rankings.collectAsStateWithLifecycle()
-    val sessions by viewModel.sessions.collectAsStateWithLifecycle()
-    var dwellText by rememberSaveable { mutableStateOf(DEFAULT_DWELL_SECONDS.toString()) }
-    var selectedPresetNames by rememberSaveable {
-        mutableStateOf(listOf(ChannelOption.LONG_FAST.name))
-    }
+    val selectedReport by viewModel.selectedReport.collectAsStateWithLifecycle()
     var selectedNodeList by remember { mutableStateOf<DiscoveryNodeList?>(null) }
 
+    DiscoveryEventCollectors(
+        viewModel = viewModel,
+        uiViewModel = uiViewModel,
+        onNodeList = { selectedNodeList = it },
+    )
+
+    selectedNodeList?.let { DiscoveryNodeListDialog(it) { selectedNodeList = null } }
+
+    val report = selectedReport
+    if (report != null) {
+        DiscoveryReportScreen(
+            report = report,
+            onBack = viewModel::closeReport,
+            onMap = viewModel::requestMap,
+            onList = viewModel::requestList,
+            onDelete = { sessionId -> viewModel.deleteSessions(setOf(sessionId)) },
+        )
+    } else {
+        DiscoveryHomeScreen(viewModel = viewModel)
+    }
+}
+
+@Composable
+private fun DiscoveryEventCollectors(
+    viewModel: LocalMeshDiscoveryViewModel,
+    uiViewModel: UIViewModel,
+    onNodeList: (DiscoveryNodeList) -> Unit,
+) {
     LaunchedEffect(Unit) {
         viewModel.mapEvents.collect { uiViewModel.showDiscoveryMap(it) }
     }
 
     LaunchedEffect(Unit) {
-        viewModel.listEvents.collect { selectedNodeList = it }
+        viewModel.listEvents.collect(onNodeList)
     }
 
     LaunchedEffect(Unit) {
         viewModel.messageEvents.collect { uiViewModel.showSnackbar(it) }
     }
+}
 
-    selectedNodeList?.let { nodeList ->
-        DiscoveryNodeListDialog(
-            nodeList = nodeList,
-            onDismiss = { selectedNodeList = null },
-        )
+@Suppress("LongMethod")
+@Composable
+private fun DiscoveryHomeScreen(viewModel: LocalMeshDiscoveryViewModel) {
+    val scanState by viewModel.scanState.collectAsStateWithLifecycle()
+    val currentSession by viewModel.currentSession.collectAsStateWithLifecycle()
+    val rankings by viewModel.rankings.collectAsStateWithLifecycle()
+    val sessions by viewModel.sessions.collectAsStateWithLifecycle()
+    var dwellText by rememberSaveable { mutableStateOf(DEFAULT_DWELL_SECONDS.toString()) }
+    var selectedPresetNames by rememberSaveable { mutableStateOf(listOf(ChannelOption.LONG_FAST.name)) }
+    var selectedSessionIds by remember { mutableStateOf(emptySet<Long>()) }
+    var showDeleteSessionsDialog by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
+    DiscoveryDeleteSelectionDialog(
+        visible = showDeleteSessionsDialog,
+        selectedSessionIds = selectedSessionIds,
+        onConfirm = {
+            viewModel.deleteSessions(selectedSessionIds)
+            selectedSessionIds = emptySet()
+            showDeleteSessionsDialog = false
+        },
+        onDismiss = { showDeleteSessionsDialog = false },
+    )
+
+    LaunchedEffect(sessions) {
+        val visibleSessionIds = sessions.map { it.id }.toSet()
+        selectedSessionIds = selectedSessionIds.filterTo(mutableSetOf()) { it in visibleSessionIds }
     }
 
     val selectedPresets = ChannelOption.entries
@@ -148,6 +191,7 @@ private fun DiscoveryScreen(
         selectedPresetNames = selectedPresetNames,
         dwellText = dwellText,
         canStart = canStart,
+        selectedSessionIds = selectedSessionIds,
         onTogglePreset = { option ->
             selectedPresetNames = if (option.name in selectedPresetNames) {
                 selectedPresetNames - option.name
@@ -162,11 +206,47 @@ private fun DiscoveryScreen(
         onStop = viewModel::stopScan,
         onMap = viewModel::requestMap,
         onList = viewModel::requestList,
+        onCurrentReport = { sessionId -> viewModel.requestReport(sessionId) },
+        onSessionClick = { sessionId ->
+            if (selectedSessionIds.isEmpty()) {
+                viewModel.requestReport(sessionId)
+            } else {
+                selectedSessionIds = selectedSessionIds.toggled(sessionId)
+            }
+        },
+        onSessionLongClick = { sessionId ->
+            selectedSessionIds = selectedSessionIds.toggled(sessionId)
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        },
+        onClearSelection = { selectedSessionIds = emptySet() },
+        onSelectAllSessions = {
+            selectedSessionIds = if (selectedSessionIds.size == sessions.size) {
+                emptySet()
+            } else {
+                sessions.map { it.id }.toSet()
+            }
+        },
+        onDeleteSelectedSessions = { showDeleteSessionsDialog = true },
     )
 }
 
 @Composable
-@Suppress("LongParameterList")
+private fun DiscoveryDeleteSelectionDialog(
+    visible: Boolean,
+    selectedSessionIds: Set<Long>,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (!visible) return
+    DeleteDiscoverySessionsDialog(
+        count = selectedSessionIds.size,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    )
+}
+
+@Composable
+@Suppress("LongMethod", "LongParameterList")
 private fun DiscoveryContent(
     scanState: DiscoveryScanState,
     currentSession: DiscoverySessionEntity?,
@@ -175,12 +255,19 @@ private fun DiscoveryContent(
     selectedPresetNames: List<String>,
     dwellText: String,
     canStart: Boolean,
+    selectedSessionIds: Set<Long>,
     onTogglePreset: (ChannelOption) -> Unit,
     onDwellChange: (String) -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onMap: (Long) -> Unit,
     onList: (Long) -> Unit,
+    onCurrentReport: (Long) -> Unit,
+    onSessionClick: (Long) -> Unit,
+    onSessionLongClick: (Long) -> Unit,
+    onClearSelection: () -> Unit,
+    onSelectAllSessions: () -> Unit,
+    onDeleteSelectedSessions: () -> Unit,
 ) {
     Surface {
         LazyColumn(
@@ -203,24 +290,28 @@ private fun DiscoveryContent(
                 )
             }
 
-            item { DiscoveryStatus(state = scanState, session = currentSession) }
+            item {
+                DiscoveryStatus(
+                    state = scanState,
+                    session = currentSession,
+                    onReport = { sessionId -> onCurrentReport(sessionId) },
+                )
+            }
 
             if (rankings.isNotEmpty()) {
-                item { SectionTitle("Ranking") }
-                items(rankings, key = { "rank-${it.presetResultId}" }) { rank ->
-                    PresetRankItem(
-                        rank = rank,
-                        onMap = { onMap(rank.presetResultId) },
-                        onList = { onList(rank.presetResultId) },
-                    )
-                }
+                discoveryRankingSection(rankings, onMap, onList)
             }
 
             if (sessions.isNotEmpty()) {
-                item { SectionTitle("Recent Sessions") }
-                items(sessions, key = { "session-${it.id}" }) { session ->
-                    SessionItem(session = session)
-                }
+                discoverySessionSection(
+                    sessions = sessions,
+                    selectedSessionIds = selectedSessionIds,
+                    onSessionClick = onSessionClick,
+                    onSessionLongClick = onSessionLongClick,
+                    onClearSelection = onClearSelection,
+                    onSelectAllSessions = onSelectAllSessions,
+                    onDeleteSelectedSessions = onDeleteSelectedSessions,
+                )
             }
         }
     }
@@ -307,12 +398,21 @@ private fun PresetGrid(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DiscoveryStatus(
     state: DiscoveryScanState,
     session: DiscoverySessionEntity?,
+    onReport: (Long) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                enabled = session != null,
+                onClick = { session?.let { onReport(it.id) } },
+            ),
+    ) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -337,67 +437,7 @@ private fun DiscoveryStatus(
 }
 
 @Composable
-private fun PresetRankItem(
-    rank: DiscoveryPresetRank,
-    onMap: () -> Unit,
-    onList: () -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(rank.presetName, style = MaterialTheme.typography.subtitle1)
-                    Text(
-                        "${rank.uniqueNodes} nodes, ${rank.directNeighbors} direct, " +
-                                "${rank.packetCount} packets"
-                    )
-                    Text(
-                        "SNR ${rank.averageSnr.formatDb()}, RSSI ${rank.averageRssi.formatRssi()}"
-                    )
-                }
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedButton(onClick = onMap) {
-                        Icon(Icons.Default.Map, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Map")
-                    }
-                    OutlinedButton(onClick = onList) {
-                        Icon(Icons.AutoMirrored.Default.List, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("List")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SessionItem(session: DiscoverySessionEntity) {
-    val formatter = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(formatter.format(Date(session.timestamp)), style = MaterialTheme.typography.subtitle1)
-            Text("${session.presetsScanned} - ${session.completionStatus}")
-            Text(
-                "${session.uniqueNodes} nodes, ${session.messageCount} messages, " +
-                        "${session.sensorCount} sensor packets"
-            )
-        }
-    }
-}
-
-@Composable
-private fun SectionTitle(text: String) {
+internal fun SectionTitle(text: String) {
     Column {
         Spacer(Modifier.height(4.dp))
         Text(text, style = MaterialTheme.typography.subtitle2)

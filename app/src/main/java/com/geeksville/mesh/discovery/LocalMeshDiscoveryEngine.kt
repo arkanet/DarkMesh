@@ -29,6 +29,7 @@ import com.geeksville.mesh.database.entity.DiscoverySessionEntity
 import com.geeksville.mesh.database.entity.DiscoverySessionStatus
 import com.geeksville.mesh.model.Channel
 import com.geeksville.mesh.model.ChannelOption
+import com.geeksville.mesh.model.Node
 import com.geeksville.mesh.repository.datastore.RadioConfigRepository
 import com.geeksville.mesh.repository.radio.RadioInterfaceService
 import com.geeksville.mesh.service.MeshService.ConnectionState
@@ -120,14 +121,16 @@ class LocalMeshDiscoveryEngine @Inject constructor(
         val result = discoveryDao.getPresetResult(presetResultId)
         val nodes = discoveryDao.getDiscoveredNodes(presetResultId)
         val localNodeNum = radioConfigRepository.myNodeInfo.value?.myNodeNum?.toLong()
-        val localMapNode = localNodeNum?.let { nodeNum ->
-            radioConfigRepository.nodeDBbyNum.value[nodeNum.toInt()]
-        }
+        val knownNodeByNum = radioConfigRepository.nodeDBbyNum.value
+        val session = result?.sessionId?.let { discoveryDao.getSession(it) }
+        val localMapNode = localNodeForDiscovery(localNodeNum, session)
+        val originNodeNum = localNodeNum ?: localMapNode?.num?.toLong()
         return DiscoveryMapBuilder.build(
             nodes = nodes,
-            localNodeNum = localNodeNum,
+            localNodeNum = originNodeNum,
             localNode = localMapNode,
             presetName = result?.presetName.orEmpty(),
+            knownNodeByNum = knownNodeByNum,
         )
     }
 
@@ -135,15 +138,53 @@ class LocalMeshDiscoveryEngine @Inject constructor(
         val result = discoveryDao.getPresetResult(presetResultId) ?: return null
         val nodes = discoveryDao.getDiscoveredNodes(presetResultId)
         val localNodeNum = radioConfigRepository.myNodeInfo.value?.myNodeNum?.toLong()
-        val localMapNode = localNodeNum?.let { nodeNum ->
-            radioConfigRepository.nodeDBbyNum.value[nodeNum.toInt()]
-        }
+        val session = discoveryDao.getSession(result.sessionId)
+        val localMapNode = localNodeForDiscovery(localNodeNum, session)
         return DiscoveryNodeListBuilder.build(
             presetName = result.presetName,
             nodes = nodes,
             localNode = localMapNode,
-            localNodeNum = localNodeNum,
+            localNodeNum = localNodeNum ?: localMapNode?.num?.toLong(),
         )
+    }
+
+    suspend fun buildDiscoveryReport(sessionId: Long): DiscoveryReport? {
+        val session = discoveryDao.getSession(sessionId) ?: return null
+        val localNodeNum = radioConfigRepository.myNodeInfo.value?.myNodeNum?.toLong()
+        val localMapNode = localNodeForDiscovery(localNodeNum, session)
+        val originNodeNum = localNodeNum ?: localMapNode?.num?.toLong()
+        val presetResults = discoveryDao.getPresetResults(sessionId)
+        val rankedResults = rankingEngine.rank(presetResults).mapIndexed { index, rank ->
+            rank.presetResultId to (index + 1)
+        }.toMap()
+        val presets = presetResults.map { result ->
+            val nodes = discoveryDao.getDiscoveredNodes(result.id)
+            DiscoveryPresetReport(
+                result = result,
+                rank = rankedResults[result.id] ?: 0,
+                nodeList = DiscoveryNodeListBuilder.build(
+                    presetName = result.presetName,
+                    nodes = nodes,
+                    localNode = localMapNode,
+                    localNodeNum = originNodeNum,
+                ),
+            )
+        }.sortedWith(
+            compareBy<DiscoveryPresetReport> { if (it.rank == 0) Int.MAX_VALUE else it.rank }
+                .thenBy { it.result.presetName }
+        )
+
+        return DiscoveryReport(session = session, presets = presets)
+    }
+
+    suspend fun deleteDiscoverySessions(sessionIds: Set<Long>) {
+        if (sessionIds.isEmpty()) return
+        discoveryDao.deleteSessions(sessionIds.toList())
+        if (_currentSession.value?.id in sessionIds) {
+            _currentSession.value = null
+            _rankings.value = emptyList()
+            if (!_scanState.value.isRunning) _scanState.value = DiscoveryScanState.Idle
+        }
     }
 
     @Suppress("LongMethod", "TooGenericExceptionCaught")
@@ -382,6 +423,7 @@ class LocalMeshDiscoveryEngine @Inject constructor(
                 nodes.any { it.isInfrastructure }
             },
         )
+        _currentSession.value = discoveryDao.getSession(sessionId) ?: _currentSession.value
         _rankings.value = rankingEngine.rank(presetResults)
     }
 
@@ -527,6 +569,42 @@ class LocalMeshDiscoveryEngine @Inject constructor(
         return takeIf { it.isNotEmpty() }?.average()?.toFloat()
     }
 
+    private fun localNodeForDiscovery(
+        localNodeNum: Long?,
+        session: DiscoverySessionEntity?,
+    ): Node? {
+        val knownNode = localNodeNum?.let { radioConfigRepository.nodeDBbyNum.value[it.toInt()] }
+        val latitude = session?.userLatitude?.takeIf { it != ZERO_COORDINATE }
+        val longitude = session?.userLongitude?.takeIf { it != ZERO_COORDINATE }
+
+        return when {
+            knownNode?.validPosition != null || knownNode?.validLiteNode == true -> knownNode
+            latitude != null && longitude != null -> localNodeWithSessionPosition(
+                knownNode = knownNode,
+                localNodeNum = localNodeNum,
+                latitude = latitude,
+                longitude = longitude,
+            )
+            else -> knownNode
+        }
+    }
+
+    private fun localNodeWithSessionPosition(
+        knownNode: Node?,
+        localNodeNum: Long?,
+        latitude: Double,
+        longitude: Double,
+    ): Node {
+        return (knownNode ?: Node(num = localNodeNum?.toInt() ?: REPORT_LOCAL_NODE_NUM)).copy(
+            liteNodeId = "local",
+            liteDefaultName = "Local Mesh Discovery",
+            liteLongName = "Local Mesh Discovery",
+            liteShortName = "LMD",
+            liteLatitude = latitude,
+            liteLongitude = longitude,
+        )
+    }
+
     companion object {
         private const val CONNECT_TIMEOUT_MS = 120_000L
         private const val CONFIG_SETTLE_MS = 3_000L
@@ -536,6 +614,7 @@ class LocalMeshDiscoveryEngine @Inject constructor(
         private const val DEVICE_METRICS_MIN_SAMPLES = 2
         private const val PRIMARY_CHANNEL_INDEX = 0
         private const val ZERO_COORDINATE = 0.0
+        private const val REPORT_LOCAL_NODE_NUM = 0
     }
 }
 

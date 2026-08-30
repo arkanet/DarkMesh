@@ -19,6 +19,7 @@ package com.geeksville.mesh.ui.discovery
 
 import com.geeksville.mesh.discovery.DiscoveryScanState
 import com.geeksville.mesh.model.ChannelOption
+import java.util.Locale
 import kotlin.math.roundToInt
 
 internal fun DiscoveryScanState.statusText(): String = when (this) {
@@ -49,4 +50,33 @@ internal fun Float?.formatRssi(): String {
     return this?.let { "${it.roundToInt()} dBm" } ?: "-"
 }
 
+internal fun Float?.formatPercent(): String {
+    return this?.let { String.format(Locale.getDefault(), "%.1f%%", it) } ?: "-"
+}
+
+internal fun Int?.formatCount(): String {
+    return this?.toString() ?: "-"
+}
+
+internal fun Long.formatDiscoveryDuration(): String {
+    val minutes = this / SECONDS_PER_MINUTE
+    val seconds = this % SECONDS_PER_MINUTE
+    return when {
+        minutes > 0 && seconds > 0 -> "${minutes}m ${seconds}s"
+        minutes > 0 -> "${minutes}m"
+        else -> "${seconds}s"
+    }
+}
+
+internal fun formatDiscoveryRate(successCount: Int?, failureCount: Int?): String {
+    val counts = successCount?.let { success ->
+        failureCount?.let { failure -> success to success + failure }
+    }
+    return counts?.takeIf { (_, total) -> total != 0 }?.let { (success, total) ->
+        String.format(Locale.getDefault(), "%.1f%%", success * PERCENT_SCALE / total)
+    } ?: "-"
+}
+
 private const val DECIMAL_SCALE = 10f
+private const val SECONDS_PER_MINUTE = 60
+private const val PERCENT_SCALE = 100f

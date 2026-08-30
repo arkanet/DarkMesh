@@ -283,7 +283,7 @@ class DiscoveryPacketCollector(
         private const val MIN_LONGITUDE = -180.0
         private const val MAX_LONGITUDE = 180.0
         private const val MIN_DIRECT_HOPS = 0
-        private const val MAX_DIRECT_HOPS = 1
+        private const val MAX_DIRECT_HOPS = 0
         private val DIRECT_HOP_RANGE = MIN_DIRECT_HOPS..MAX_DIRECT_HOPS
         private const val ROUTER_ROLE_VALUE = 2
         private const val ROUTER_LATE_ROLE_VALUE = 11

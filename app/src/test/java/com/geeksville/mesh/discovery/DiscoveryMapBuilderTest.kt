@@ -21,13 +21,12 @@ import com.geeksville.mesh.database.entity.DiscoveredNodeEntity
 import com.geeksville.mesh.database.entity.DiscoveryNeighborType
 import com.geeksville.mesh.model.Node
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Test
+import org.meshtastic.proto.MeshProtos
 
 class DiscoveryMapBuilderTest {
     @Test
-    fun buildsNodeListWithPresetOriginDirectNodesFirstAndNeighborSnrFallback() {
+    fun buildsNodeListWithZeroHopDirectNodesAndNeighborSnrFallback() {
         val nodeList = DiscoveryNodeListBuilder.build(
             presetName = PRESET_NAME,
             localNode = Node(
@@ -38,8 +37,7 @@ class DiscoveryMapBuilderTest {
             nodes = listOf(
                 discoveredNode(
                     nodeNum = NODE_C,
-                    viaNodeNum = NODE_B,
-                    hopCount = TWO_HOPS,
+                    neighborType = DiscoveryNeighborType.DIRECT,
                     snr = null,
                     neighborSnr = MESH_NEIGHBOR_SNR,
                 ),
@@ -60,15 +58,15 @@ class DiscoveryMapBuilderTest {
 
         assertEquals(PRESET_NAME, nodeList.presetName)
         assertEquals(LOCAL_NODE_NAME, nodeList.originName)
-        assertEquals(listOf(NODE_B, NODE_C, NODE_F), nodeList.nodes.map { it.nodeNum })
-        assertEquals(MESH_NEIGHBOR_SNR, nodeList.nodes[1].snr)
+        assertEquals(listOf(NODE_C, NODE_B), nodeList.nodes.map { it.nodeNum })
+        assertEquals(MESH_NEIGHBOR_SNR, nodeList.nodes.first().snr)
     }
 
     @Test
-    fun anchorsMeshRouteToFirstAndLastPositionedHopWhenLogicalEndpointsAreMissingPosition() {
+    fun buildsOnlyZeroHopDirectMapLinksAndListItems() {
         val map = requireNotNull(
             DiscoveryMapBuilder.build(
-                localNode = Node(num = LOCAL_NODE),
+                localNode = positionedNode(LOCAL_NODE, LOCAL_LATITUDE, LOCAL_LONGITUDE),
                 localNodeNum = LOCAL_NODE.toLong(),
                 nodes = listOf(
                     discoveredNode(
@@ -80,62 +78,68 @@ class DiscoveryMapBuilderTest {
                     ),
                     discoveredNode(
                         nodeNum = NODE_C,
-                        viaNodeNum = NODE_B,
-                        hopCount = TWO_HOPS,
+                        neighborType = DiscoveryNeighborType.DIRECT,
+                        latitude = NODE_C_LATITUDE,
+                        longitude = NODE_C_LONGITUDE,
+                        hopCount = ONE_HOP,
                     ),
                     discoveredNode(
                         nodeNum = NODE_F,
-                        viaNodeNum = NODE_C,
+                        neighborType = DiscoveryNeighborType.MESH,
                         latitude = NODE_F_LATITUDE,
                         longitude = NODE_F_LONGITUDE,
-                        hopCount = FOUR_HOPS,
+                        viaNodeNum = NODE_C,
+                        hopCount = TWO_HOPS,
                     ),
                     discoveredNode(
                         nodeNum = NODE_G,
-                        viaNodeNum = NODE_F,
-                        hopCount = FIVE_HOPS,
+                        neighborType = DiscoveryNeighborType.DIRECT,
+                        hopCount = DIRECT_HOPS,
                     ),
                 ),
             )
         )
 
         val link = map.links.single()
-        assertNull(map.localNode)
-        assertEquals(NODE_B.toInt(), link.from.num)
-        assertEquals(NODE_F.toInt(), link.to.num)
-        assertFalse(link.isDirect)
+        assertEquals(LOCAL_NODE, link.from.num)
+        assertEquals(NODE_B.toInt(), link.to.num)
+        assertEquals(listOf(NODE_B, NODE_G), map.nodeList.nodes.map { it.nodeNum })
     }
 
     @Test
-    fun skipsAnchoredRouteWhenOnlyOneHopHasPosition() {
+    fun usesKnownNodeDbPositionWhenDirectDiscoveryNodeHasNoStoredPosition() {
         val map = requireNotNull(
             DiscoveryMapBuilder.build(
-                localNode = Node(num = LOCAL_NODE),
+                localNode = positionedNode(LOCAL_NODE, LOCAL_LATITUDE, LOCAL_LONGITUDE),
                 localNodeNum = LOCAL_NODE.toLong(),
                 nodes = listOf(
                     discoveredNode(
                         nodeNum = NODE_B,
                         neighborType = DiscoveryNeighborType.DIRECT,
-                        latitude = NODE_B_LATITUDE,
-                        longitude = NODE_B_LONGITUDE,
                         hopCount = DIRECT_HOPS,
                     ),
-                    discoveredNode(
-                        nodeNum = NODE_C,
-                        viaNodeNum = NODE_B,
-                        hopCount = TWO_HOPS,
-                    ),
-                    discoveredNode(
-                        nodeNum = NODE_G,
-                        viaNodeNum = NODE_C,
-                        hopCount = THREE_HOPS,
-                    ),
+                ),
+                knownNodeByNum = mapOf(
+                    NODE_B.toInt() to positionedNode(NODE_B.toInt(), NODE_B_LATITUDE, NODE_B_LONGITUDE)
                 ),
             )
         )
 
-        assertEquals(emptyList<DiscoveryMapLink>(), map.links)
+        val link = map.links.single()
+        assertEquals(NODE_B.toInt(), link.to.num)
     }
+
+    private fun positionedNode(
+        nodeNum: Int,
+        latitude: Double,
+        longitude: Double,
+    ) = Node(
+        num = nodeNum,
+        position = MeshProtos.Position.newBuilder()
+            .setLatitudeI((latitude * COORDINATE_SCALE).toInt())
+            .setLongitudeI((longitude * COORDINATE_SCALE).toInt())
+            .build(),
+    )
 
     private fun discoveredNode(
         nodeNum: Long,
@@ -171,18 +175,22 @@ class DiscoveryMapBuilderTest {
         const val NODE_C = 3L
         const val NODE_F = 6L
         const val NODE_G = 7L
-        const val DIRECT_HOPS = 1
+        const val DIRECT_HOPS = 0
+        const val ONE_HOP = 1
         const val TWO_HOPS = 2
         const val THREE_HOPS = 3
-        const val FOUR_HOPS = 4
-        const val FIVE_HOPS = 5
+        const val LOCAL_LATITUDE = 44.0
+        const val LOCAL_LONGITUDE = 8.0
         const val NODE_B_LATITUDE = 45.0
         const val NODE_B_LONGITUDE = 9.0
+        const val NODE_C_LATITUDE = 45.5
+        const val NODE_C_LONGITUDE = 9.5
         const val NODE_F_LATITUDE = 46.0
         const val NODE_F_LONGITUDE = 10.0
         const val DEFAULT_SNR = -3.5f
         const val DIRECT_SNR = -12.0f
         const val MESH_NEIGHBOR_SNR = 4.5f
         const val FAR_MESH_SNR = 8.0f
+        const val COORDINATE_SCALE = 1e7
     }
 }

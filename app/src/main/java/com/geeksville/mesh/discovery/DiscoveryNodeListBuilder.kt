@@ -18,7 +18,6 @@
 package com.geeksville.mesh.discovery
 
 import com.geeksville.mesh.database.entity.DiscoveredNodeEntity
-import com.geeksville.mesh.database.entity.DiscoveryNeighborType
 import com.geeksville.mesh.model.Node
 
 internal object DiscoveryNodeListBuilder {
@@ -36,12 +35,12 @@ internal object DiscoveryNodeListBuilder {
             presetName = presetName,
             originName = originName,
             nodes = nodes
+                .filter { it.isZeroHopDirectDiscoveryNode() }
                 .distinctBy { it.nodeNum }
                 .sortedWith(
                     compareByDescending<DiscoveredNodeEntity> {
-                        it.neighborType == DiscoveryNeighborType.DIRECT
-                    }.thenBy { it.hopCount ?: Int.MAX_VALUE }
-                        .thenByDescending { it.snr ?: it.neighborSnr ?: Float.NEGATIVE_INFINITY }
+                        it.snr ?: it.neighborSnr ?: Float.NEGATIVE_INFINITY
+                    }
                         .thenBy { it.discoveryListName() }
                 )
                 .map {
