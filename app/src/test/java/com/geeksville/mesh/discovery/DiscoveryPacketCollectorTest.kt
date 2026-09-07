@@ -49,7 +49,7 @@ class DiscoveryPacketCollectorTest {
     }
 
     @Test
-    fun parsesNodeInfoAndPositionWithoutPromotingZeroRssi() {
+    fun parsesNodeInfoAndPositionWithoutPromotingAbsentRssi() {
         val collector = DiscoveryPacketCollector(
             localNodeNum = LOCAL_NODE,
             nodeSnapshot = emptyMap(),
@@ -68,7 +68,7 @@ class DiscoveryPacketCollectorTest {
                     .setShortName("A")
                     .build()
                     .toByteString(),
-                rxRssi = 0,
+                rxRssi = null,
             )
         )
         collector.ingest(
@@ -80,7 +80,7 @@ class DiscoveryPacketCollectorTest {
                     .setLongitudeI(90_000_000)
                     .build()
                     .toByteString(),
-                rxRssi = 0,
+                rxRssi = null,
             )
         )
 
@@ -90,6 +90,23 @@ class DiscoveryPacketCollectorTest {
         assertEquals(45.0, node.latitude!!, 0.0)
         assertEquals(9.0, node.longitude!!, 0.0)
         assertNull(node.rssi)
+    }
+
+    @Test
+    fun preservesExplicitZeroRssiAndRxTime() {
+        val collector = DiscoveryPacketCollector(
+            localNodeNum = LOCAL_NODE,
+            nodeSnapshot = emptyMap(),
+            registrySnapshot = emptyMap(),
+            originLatitude = null,
+            originLongitude = null,
+        )
+
+        collector.ingest(textPacket(from = NODE_TWO, rxRssi = 0, rxTime = 0))
+
+        val node = collector.snapshot().nodes.single()
+        assertEquals(0, node.rssi)
+        assertEquals(0L, node.lastSeen)
     }
 
     @Test
@@ -186,32 +203,41 @@ class DiscoveryPacketCollectorTest {
         assertEquals(7, snapshot.localStats?.numPacketsRx)
     }
 
-    private fun textPacket(from: Int) = packet(
+    private fun textPacket(
+        from: Int,
+        rxRssi: Int? = -100,
+        rxTime: Int? = 123,
+    ) = packet(
         from = from,
         portNum = Portnums.PortNum.TEXT_MESSAGE_APP_VALUE,
         payload = ByteString.copyFromUtf8("hello"),
+        rxRssi = rxRssi,
+        rxTime = rxTime,
     )
 
     private fun packet(
         from: Int,
         portNum: Int,
         payload: ByteString,
-        rxRssi: Int = -100,
+        rxRssi: Int? = -100,
+        rxTime: Int? = 123,
     ): MeshProtos.MeshPacket {
-        return MeshProtos.MeshPacket.newBuilder()
+        val builder = MeshProtos.MeshPacket.newBuilder()
             .setFrom(from)
             .setTo(LOCAL_NODE)
             .setHopStart(3)
-            .setHopLimit(2)
+            .setHopLimit(3)
             .setRxSnr(-4.5f)
-            .setRxRssi(rxRssi)
-            .setRxTime(123)
             .setDecoded(
                 MeshProtos.Data.newBuilder()
                     .setPortnumValue(portNum)
                     .setPayload(payload)
             )
-            .build()
+
+        rxRssi?.let(builder::setRxRssi)
+        rxTime?.let(builder::setRxTime)
+
+        return builder.build()
     }
 
     private companion object {

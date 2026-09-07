@@ -181,9 +181,9 @@ class DiscoveryPacketCollector(
         }
 
         if (packet.rxSnr != 0f) snr = packet.rxSnr
-        if (packet.rxRssi != 0) rssi = packet.rxRssi
+        if (packet.hasRxRssi()) rssi = packet.rxRssi
         packet.hopsAway().takeIf { it >= 0 }?.let { hopCount = it }
-        lastSeen = packet.rxTime.toLong().takeIf { it > 0 } ?: System.currentTimeMillis()
+        lastSeen = if (packet.hasRxTime()) packet.rxTime.toLong() else System.currentTimeMillis()
     }
 
     private fun MutableDiscoveredNode.ingestUser(payload: ByteArray) {
