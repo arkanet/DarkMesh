@@ -311,8 +311,11 @@ class LocalMeshDiscoveryEngine @Inject constructor(
             .setChannelNum(0)
             .build()
 
-        applyLoRaConfig(scanLora)
-        waitForRadioRestart(target.name)
+        if (applyLoRaConfigIfChanged(scanLora, target.name)) {
+            waitForRadioRestart(target.name)
+        } else {
+            waitForRadioReady(target.name)
+        }
     }
 
     private suspend fun startDwell(
@@ -470,9 +473,26 @@ class LocalMeshDiscoveryEngine @Inject constructor(
         if (restorePrimaryChannel && session.homePrimaryChannel != null) {
             applyPrimaryChannel(session.homePrimaryChannel)
         }
-        applyLoRaConfig(homeLora)
-        waitForRadioRestart("home")
+        if (applyLoRaConfigIfChanged(homeLora, "home")) {
+            waitForRadioRestart("home")
+        } else {
+            waitForRadioReady("home")
+        }
         updateSessionStatus(session.id, finalStatus, failureMessage)
+    }
+
+    private suspend fun applyLoRaConfigIfChanged(
+        loraConfig: ConfigProtos.Config.LoRaConfig,
+        presetName: String,
+    ): Boolean {
+        val currentLora = radioConfigRepository.localConfigFlow.first { it.hasLora() }.lora
+        if (currentLora == loraConfig) {
+            debug("Discovery LoRa config already active for $presetName; skipping config commit")
+            return false
+        }
+
+        applyLoRaConfig(loraConfig)
+        return true
     }
 
     private fun applyLoRaConfig(loraConfig: ConfigProtos.Config.LoRaConfig) {

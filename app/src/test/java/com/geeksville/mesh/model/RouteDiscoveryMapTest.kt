@@ -23,6 +23,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.meshtastic.proto.MeshProtos
+import org.meshtastic.proto.Portnums
 
 class RouteDiscoveryMapTest {
     @Test
@@ -86,6 +87,107 @@ class RouteDiscoveryMapTest {
         assertNull(map)
     }
 
+    @Test
+    fun fullRouteDiscoveryDropsLeadingRequesterFromRouteBack() {
+        val packet = traceroutePacket(
+            from = DESTINATION_NODE,
+            to = ORIGIN_NODE,
+            route = listOf(RELAY_A_NODE),
+            routeBack = listOf(ORIGIN_NODE, RELAY_B_NODE),
+            snrTowards = listOf(20, 16),
+            snrBack = listOf(19, 15, 11),
+        )
+
+        val route = packet.fullRouteDiscovery
+
+        assertEquals(listOf(ORIGIN_NODE, RELAY_A_NODE, DESTINATION_NODE), route?.routeList)
+        assertEquals(listOf(DESTINATION_NODE, RELAY_B_NODE, ORIGIN_NODE), route?.routeBackList)
+        assertEquals(listOf(15, 11), route?.snrBackList)
+    }
+
+    @Test
+    fun fullRouteDiscoveryPreservesNormalRouteBackPayload() {
+        val packet = traceroutePacket(
+            from = DESTINATION_NODE,
+            to = ORIGIN_NODE,
+            route = listOf(RELAY_A_NODE),
+            routeBack = listOf(RELAY_B_NODE, RELAY_A_NODE),
+            snrTowards = listOf(20, 16),
+            snrBack = listOf(19, 15, 11),
+        )
+
+        val route = packet.fullRouteDiscovery
+
+        assertEquals(
+            listOf(DESTINATION_NODE, RELAY_B_NODE, RELAY_A_NODE, ORIGIN_NODE),
+            route?.routeBackList,
+        )
+        assertEquals(listOf(19, 15, 11), route?.snrBackList)
+    }
+
+    @Test
+    fun tracerouteMapUsesNormalizedRouteBackWithoutSyntheticDirectSegment() {
+        val packet = traceroutePacket(
+            from = DESTINATION_NODE,
+            to = ORIGIN_NODE,
+            route = listOf(RELAY_A_NODE),
+            routeBack = listOf(ORIGIN_NODE, RELAY_B_NODE),
+            snrTowards = listOf(20, 16),
+            snrBack = listOf(19, 15, 11),
+        )
+        val traceroute = packet.getTracerouteResponse { nodeNum ->
+            when (nodeNum) {
+                ORIGIN_NODE -> "Origin"
+                DESTINATION_NODE -> "Destination"
+                RELAY_A_NODE -> "Relay A"
+                RELAY_B_NODE -> "Relay B"
+                else -> nodeNum.toString()
+            }
+        }
+
+        val map = evaluateTracerouteMapAvailability(
+            traceroute = traceroute,
+            nodesByNum = mapOf(
+                ORIGIN_NODE to positionedNode(ORIGIN_NODE, "Origin", ORIGIN_LAT, ORIGIN_LON),
+                DESTINATION_NODE to positionedNode(
+                    DESTINATION_NODE,
+                    "Destination",
+                    DESTINATION_LAT,
+                    DESTINATION_LON,
+                ),
+                RELAY_A_NODE to positionedNode(RELAY_A_NODE, "Relay A", RELAY_A_LAT, RELAY_A_LON),
+                RELAY_B_NODE to positionedNode(RELAY_B_NODE, "Relay B", RELAY_B_LAT, RELAY_B_LON),
+            ),
+            nodeRegistryMap = emptyMap(),
+        )
+
+        assertEquals(
+            listOf(ORIGIN_NODE, RELAY_A_NODE, DESTINATION_NODE),
+            map?.traceForwardList?.map { it.num },
+        )
+        assertEquals(
+            listOf(DESTINATION_NODE, RELAY_B_NODE, ORIGIN_NODE),
+            map?.traceBackList?.map { it.num },
+        )
+    }
+
+    @Test
+    fun fullRouteDiscoveryKeepsDirectRouteBackSnrWhenRequesterIsOnlyPayloadNode() {
+        val packet = traceroutePacket(
+            from = DESTINATION_NODE,
+            to = ORIGIN_NODE,
+            route = emptyList(),
+            routeBack = listOf(ORIGIN_NODE),
+            snrTowards = listOf(20),
+            snrBack = listOf(17),
+        )
+
+        val route = packet.fullRouteDiscovery
+
+        assertEquals(listOf(DESTINATION_NODE, ORIGIN_NODE), route?.routeBackList)
+        assertEquals(listOf(17), route?.snrBackList)
+    }
+
     private val fullTracerouteText = """
         Route traced toward destination:
 
@@ -139,6 +241,10 @@ class RouteDiscoveryMapTest {
         const val DESTINATION_NODE = 2
         const val RELAY_A_NODE = 3
         const val RELAY_B_NODE = 4
+        const val ORIGIN_LAT = 44.9
+        const val ORIGIN_LON = 8.9
+        const val DESTINATION_LAT = 45.3
+        const val DESTINATION_LON = 9.3
         const val RELAY_A_LAT = 45.0
         const val RELAY_A_LON = 9.0
         const val RELAY_B_LAT = 45.2
@@ -189,6 +295,33 @@ class RouteDiscoveryMapTest {
                 latitudeI = (latitude * COORDINATE_SCALE).toInt(),
                 longitudeI = (longitude * COORDINATE_SCALE).toInt(),
             )
+        }
+
+        fun traceroutePacket(
+            from: Int,
+            to: Int,
+            route: List<Int>,
+            routeBack: List<Int>,
+            snrTowards: List<Int>,
+            snrBack: List<Int>,
+        ): MeshProtos.MeshPacket {
+            val routeDiscovery = MeshProtos.RouteDiscovery.newBuilder()
+                .addAllRoute(route)
+                .addAllRouteBack(routeBack)
+                .addAllSnrTowards(snrTowards)
+                .addAllSnrBack(snrBack)
+                .build()
+
+            return MeshProtos.MeshPacket.newBuilder()
+                .setFrom(from)
+                .setTo(to)
+                .setHopStart(1)
+                .setDecoded(
+                    MeshProtos.Data.newBuilder()
+                        .setPortnum(Portnums.PortNum.TRACEROUTE_APP)
+                        .setPayload(routeDiscovery.toByteString()),
+                )
+                .build()
         }
 
         const val COORDINATE_SCALE = 1e7

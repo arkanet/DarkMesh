@@ -42,16 +42,36 @@ val MeshProtos.MeshPacket.fullRouteDiscovery: RouteDiscovery?
                 clearRoute()
                 addAllRoute(fullRoute)
 
-                val fullRouteBack = listOf(from) + routeBackList + to
+                val (fullRouteBack, normalizedSnrBack) = normalizedRouteBack(from, to)
                 clearRouteBack()
-                if (hopStart > 0 && snrBackCount > 0) { // otherwise back route is invalid
+                clearSnrBack()
+                if (hopStart > 0 && normalizedSnrBack.isNotEmpty()) { // otherwise back route is invalid
                     addAllRouteBack(fullRouteBack)
+                    addAllSnrBack(normalizedSnrBack)
                 }
             }?.build()
         } else {
             null
         }
     }
+
+private fun RouteDiscovery.Builder.normalizedRouteBack(
+    packetFrom: Int,
+    packetTo: Int,
+): Pair<List<Int>, List<Int>> {
+    var routeBack = routeBackList.toList()
+    var snrBack = snrBackList.toList()
+
+    if (routeBack.firstOrNull() == packetTo) {
+        routeBack = routeBack.drop(1)
+        val expectedSnrCount = routeBack.size + 1
+        if (snrBack.size > expectedSnrCount) {
+            snrBack = snrBack.drop(1)
+        }
+    }
+
+    return (listOf(packetFrom) + routeBack + packetTo) to snrBack
+}
 
 data class TraceRouteMap(
     val traceForwardList: List<Node>,

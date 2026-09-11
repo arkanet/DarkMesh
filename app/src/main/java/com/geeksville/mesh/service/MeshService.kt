@@ -83,6 +83,7 @@ import com.geeksville.mesh.service.GlobalRadioMesh.ourTracerouteRequests
 import com.geeksville.mesh.ui.ActiveChatTracker
 import com.geeksville.mesh.ui.MUTE_NODEINFO_NOTIFICATIONS
 import com.geeksville.mesh.ui.SKIP_MQTT_ENTIRELY
+import com.geeksville.mesh.ui.SYNC_TIME_WITH_DEVICE_PREF
 import com.geeksville.mesh.ui.TRACE_MAX_PRIORITY_PREF
 import com.geeksville.mesh.util.AppUtil
 import com.geeksville.mesh.util.AppUtil.hexIdToNodeNum
@@ -2552,9 +2553,13 @@ class MeshService : Service(), Logging {
 
                 haveNodeDB = true // we now have nodes from real hardware
 
-                sendToRadio(newMeshPacketTo(myNodeNum).buildAdminPacket {
-                    setTimeOnly = currentSecond()
-                })
+                if (advancedPrefs.getBoolean(SYNC_TIME_WITH_DEVICE_PREF, true)) {
+                    sendToRadio(newMeshPacketTo(myNodeNum).buildAdminPacket {
+                        setTimeOnly = currentSecond()
+                    })
+                } else {
+                    debug("Skipping radio time sync because $SYNC_TIME_WITH_DEVICE_PREF is disabled")
+                }
                 sendAnalytics()
 
                 if (deviceVersion < minDeviceVersion || appVersion < minAppVersion) {
