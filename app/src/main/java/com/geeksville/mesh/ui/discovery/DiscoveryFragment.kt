@@ -161,8 +161,13 @@ private fun DiscoveryHomeScreen(viewModel: LocalMeshDiscoveryViewModel) {
     val currentSession by viewModel.currentSession.collectAsStateWithLifecycle()
     val rankings by viewModel.rankings.collectAsStateWithLifecycle()
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
+    val initialHomePreset by viewModel.homePresetName.collectAsStateWithLifecycle()
     var dwellText by rememberSaveable { mutableStateOf(DEFAULT_DWELL_SECONDS.toString()) }
-    var selectedPresetNames by rememberSaveable { mutableStateOf(listOf(ChannelOption.LONG_FAST.name)) }
+    var selectedPresetNames by rememberSaveable {
+        mutableStateOf(
+            listOf(initialHomePreset ?: ChannelOption.LONG_FAST.name)
+        )
+    }
     var selectedSessionIds by remember { mutableStateOf(emptySet<Long>()) }
     var showDeleteSessionsDialog by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current

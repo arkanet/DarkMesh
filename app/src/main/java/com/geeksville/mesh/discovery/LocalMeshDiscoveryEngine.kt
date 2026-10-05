@@ -41,9 +41,15 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -76,6 +82,19 @@ class LocalMeshDiscoveryEngine @Inject constructor(
 
     private val _rankings = MutableStateFlow<List<DiscoveryPresetRank>>(emptyList())
     val rankings = _rankings.asStateFlow()
+
+    /**
+     * Flow representing the current device's home LoRa configuration preset name.
+     * This reflects what the device is currently configured to before any discovery scanning.
+     */
+    val homePresetName: StateFlow<String> = radioConfigRepository.localConfigFlow
+        .filter { it.hasLora() }
+        .map { Channel(loraConfig = it.lora).name }
+        .stateIn(
+            scope = CoroutineScope(dispatchers.io),
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = ChannelOption.LONG_FAST.name
+        )
 
     private var scanJob: Job? = null
     private var packetCollectionJob: Job? = null

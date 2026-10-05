@@ -42,6 +42,12 @@ class LocalMeshDiscoveryViewModel @Inject constructor(
     val sessions = discoveryDao.getSessions()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /**
+     * Flow representing the current device's home LoRa configuration preset name.
+     * This is used to preset the Discovery UI with the device's actual current configuration.
+     */
+    val homePresetName = engine.homePresetName
+
     private val _selectedReport = MutableStateFlow<DiscoveryReport?>(null)
     val selectedReport = _selectedReport.asStateFlow()
 
