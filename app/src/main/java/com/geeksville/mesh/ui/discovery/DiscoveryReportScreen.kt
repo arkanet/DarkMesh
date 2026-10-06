@@ -15,6 +15,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+@file:Suppress("TooManyFunctions")
+
 package com.geeksville.mesh.ui.discovery
 
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.emp3r0r7.darkmesh.R
 import com.geeksville.mesh.database.entity.DiscoverySessionStatus
+import com.geeksville.mesh.discovery.DiscoveryNodeClass
 import com.geeksville.mesh.discovery.DiscoveryPresetReport
 import com.geeksville.mesh.discovery.DiscoveryReport
 import java.text.DateFormat
@@ -66,8 +69,8 @@ import java.util.Date
 fun DiscoveryReportScreen(
     report: DiscoveryReport,
     onBack: () -> Unit,
-    onMap: (Long) -> Unit,
-    onList: (Long) -> Unit,
+    onMap: (Long, DiscoveryNodeClass) -> Unit,
+    onList: (Long, DiscoveryNodeClass) -> Unit,
     onDelete: (Long) -> Unit,
 ) {
     val dateFormat = remember { DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.MEDIUM) }
@@ -88,10 +91,8 @@ fun DiscoveryReportScreen(
     Scaffold(
         topBar = {
             DiscoveryReportTopBar(
-                report = report,
                 canDelete = canDelete,
                 onBack = onBack,
-                onMap = onMap,
                 onDelete = { showDeleteDialog = true },
             )
         },
@@ -115,8 +116,8 @@ fun DiscoveryReportScreen(
             items(report.presets, key = { "report-preset-${it.result.id}" }) { preset ->
                 DiscoveryPresetReportCard(
                     preset = preset,
-                    onMap = { onMap(preset.result.id) },
-                    onList = { onList(preset.result.id) },
+                    onMap = { nodeClass -> onMap(preset.result.id, nodeClass) },
+                    onList = { nodeClass -> onList(preset.result.id, nodeClass) },
                 )
             }
         }
@@ -125,10 +126,8 @@ fun DiscoveryReportScreen(
 
 @Composable
 private fun DiscoveryReportTopBar(
-    report: DiscoveryReport,
     canDelete: Boolean,
     onBack: () -> Unit,
-    onMap: (Long) -> Unit,
     onDelete: () -> Unit,
 ) = TopAppBar(
     title = { Text("Scan Report") },
@@ -138,11 +137,6 @@ private fun DiscoveryReportTopBar(
         }
     },
     actions = {
-        report.bestPreset?.let { best ->
-            IconButton(onClick = { onMap(best.result.id) }) {
-                Icon(Icons.Default.Map, contentDescription = null)
-            }
-        }
         if (canDelete) {
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
@@ -157,7 +151,7 @@ private fun DiscoveryOverviewCard(
     dateText: String,
 ) {
     val session = report.session
-    val directNodes = report.presets.flatMap { it.nodeList.nodes }.distinctBy { it.nodeNum }.size
+    val unknownNodes = (session.uniqueNodes - session.directNeighbors - session.meshNeighbors).coerceAtLeast(0)
 
     DiscoveryCard {
         Text("Session Overview", style = MaterialTheme.typography.subtitle1, fontWeight = FontWeight.Bold)
@@ -166,7 +160,9 @@ private fun DiscoveryOverviewCard(
         DiscoveryMetricRow("Presets", session.presetsScanned.replace(",", ", "))
         DiscoveryMetricRow("Home preset", session.homePreset ?: "-")
         DiscoveryMetricRow("Unique nodes", session.uniqueNodes.toString())
-        DiscoveryMetricRow("Direct nodes", directNodes.toString())
+        DiscoveryMetricRow("Neighbor nodes", session.directNeighbors.toString())
+        DiscoveryMetricRow("Network nodes", session.meshNeighbors.toString())
+        DiscoveryMetricRow("Unknown nodes", unknownNodes.toString())
         DiscoveryMetricRow("Messages", session.messageCount.toString())
         DiscoveryMetricRow("Total dwell", session.totalDwellSeconds.formatDiscoveryDuration())
     }
@@ -193,8 +189,8 @@ private fun DiscoveryAnalysisCard(report: DiscoveryReport) {
 @Composable
 private fun DiscoveryPresetReportCard(
     preset: DiscoveryPresetReport,
-    onMap: () -> Unit,
-    onList: () -> Unit,
+    onMap: (DiscoveryNodeClass) -> Unit,
+    onList: (DiscoveryNodeClass) -> Unit,
 ) {
     val result = preset.result
     DiscoveryCard {
@@ -211,7 +207,8 @@ private fun DiscoveryPresetReportCard(
         Divider()
         Text(
             "${result.presetName}: ${result.uniqueNodes} nodes " +
-                "(${preset.directNodes} direct, ${result.meshNeighbors} mesh), " +
+                "(${preset.directNodes} neighbor, ${preset.networkNodes} network, " +
+                "${preset.unknownNodes} unknown), " +
                 "${result.averageChannelUtilization.formatPercent()} channel utilization.",
             style = MaterialTheme.typography.body2,
         )
@@ -226,18 +223,19 @@ private fun DiscoveryPresetReportCard(
             "Nodes online / total",
             "${result.localNumOnlineNodes.formatCount()} / ${result.uniqueNodes}",
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onMap, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Default.Map, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Map")
-            }
-            OutlinedButton(onClick = onList, modifier = Modifier.weight(1f)) {
-                Icon(Icons.AutoMirrored.Default.List, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("List")
-            }
-        }
+        DiscoveryResultSubmodule(
+            title = "Neighbor",
+            count = preset.directNodes,
+            onMap = { onMap(DiscoveryNodeClass.NEIGHBOR) },
+            onList = { onList(DiscoveryNodeClass.NEIGHBOR) },
+        )
+        DiscoveryResultSubmodule(
+            title = "Network",
+            count = preset.networkNodes,
+            onMap = { onMap(DiscoveryNodeClass.NETWORK) },
+            onList = { onList(DiscoveryNodeClass.NETWORK) },
+        )
+        DiscoveryMetricRow("Unknown", preset.unknownNodes.toString())
     }
 }
 
@@ -245,11 +243,33 @@ private fun DiscoveryPresetReportCard(
 private fun DiscoveryStatGrid(preset: DiscoveryPresetReport) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         DiscoveryStatBlock(preset.directNodes.toString(), "Direct", Modifier.weight(1f))
-        DiscoveryStatBlock(preset.result.meshNeighbors.toString(), "Mesh", Modifier.weight(1f))
+        DiscoveryStatBlock(preset.networkNodes.toString(), "Network", Modifier.weight(1f))
     }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         DiscoveryStatBlock(preset.result.messageCount.toString(), "Messages", Modifier.weight(1f))
         DiscoveryStatBlock(preset.result.sensorCount.toString(), "Sensor packets", Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun DiscoveryResultSubmodule(
+    title: String,
+    count: Int,
+    onMap: () -> Unit,
+    onList: () -> Unit,
+) {
+    Text("$title ($count)", style = MaterialTheme.typography.subtitle2, fontWeight = FontWeight.Bold)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = onList, enabled = count > 0, modifier = Modifier.weight(1f)) {
+            Icon(Icons.AutoMirrored.Default.List, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("List")
+        }
+        OutlinedButton(onClick = onMap, enabled = count > 0, modifier = Modifier.weight(1f)) {
+            Icon(Icons.Default.Map, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Map")
+        }
     }
 }
 

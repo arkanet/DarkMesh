@@ -26,6 +26,7 @@ import androidx.room.PrimaryKey
 object DiscoveryNeighborType {
     const val DIRECT = "direct"
     const val MESH = "mesh"
+    const val UNKNOWN = "unknown"
 }
 
 @Entity(

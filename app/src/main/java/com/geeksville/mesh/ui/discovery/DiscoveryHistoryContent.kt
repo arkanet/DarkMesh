@@ -48,20 +48,21 @@ import androidx.compose.ui.unit.dp
 import com.emp3r0r7.darkmesh.R
 import com.geeksville.mesh.database.entity.DiscoverySessionEntity
 import com.geeksville.mesh.discovery.DiscoveryPresetRank
+import com.geeksville.mesh.discovery.DiscoveryNodeClass
 import java.text.DateFormat
 import java.util.Date
 
 internal fun LazyListScope.discoveryRankingSection(
     rankings: List<DiscoveryPresetRank>,
-    onMap: (Long) -> Unit,
-    onList: (Long) -> Unit,
+    onMap: (Long, DiscoveryNodeClass) -> Unit,
+    onList: (Long, DiscoveryNodeClass) -> Unit,
 ) {
     item { SectionTitle("Ranking") }
     items(rankings, key = { "rank-${it.presetResultId}" }) { rank ->
         PresetRankItem(
             rank = rank,
-            onMap = { onMap(rank.presetResultId) },
-            onList = { onList(rank.presetResultId) },
+            onMap = { nodeClass -> onMap(rank.presetResultId, nodeClass) },
+            onList = { nodeClass -> onList(rank.presetResultId, nodeClass) },
         )
     }
 }
@@ -102,18 +103,16 @@ internal fun LazyListScope.discoverySessionSection(
 @Composable
 private fun PresetRankItem(
     rank: DiscoveryPresetRank,
-    onMap: () -> Unit,
-    onList: () -> Unit,
+    onMap: (DiscoveryNodeClass) -> Unit,
+    onList: (DiscoveryNodeClass) -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                PresetRankText(rank = rank, modifier = Modifier.weight(1f))
-                PresetRankActions(onMap = onMap, onList = onList)
-            }
+            PresetRankText(rank = rank)
+            PresetRankActions(rank = rank, onMap = onMap, onList = onList)
         }
     }
 }
@@ -135,22 +134,49 @@ private fun PresetRankText(
 
 @Composable
 private fun PresetRankActions(
+    rank: DiscoveryPresetRank,
+    onMap: (DiscoveryNodeClass) -> Unit,
+    onList: (DiscoveryNodeClass) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        DiscoveryClassActions(
+            label = "Neighbor",
+            count = rank.directNeighbors,
+            onMap = { onMap(DiscoveryNodeClass.NEIGHBOR) },
+            onList = { onList(DiscoveryNodeClass.NEIGHBOR) },
+        )
+        DiscoveryClassActions(
+            label = "Network",
+            count = rank.networkNodes,
+            onMap = { onMap(DiscoveryNodeClass.NETWORK) },
+            onList = { onList(DiscoveryNodeClass.NETWORK) },
+        )
+        Text("Unknown: ${rank.unknownNodes}", style = MaterialTheme.typography.body2)
+    }
+}
+
+@Composable
+private fun DiscoveryClassActions(
+    label: String,
+    count: Int,
     onMap: () -> Unit,
     onList: () -> Unit,
 ) {
-    Column(
-        horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        OutlinedButton(onClick = onMap) {
-            Icon(Icons.Default.Map, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("Map")
-        }
-        OutlinedButton(onClick = onList) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("$label: $count", modifier = Modifier.weight(1f))
+        OutlinedButton(onClick = onList, enabled = count > 0) {
             Icon(Icons.AutoMirrored.Default.List, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(4.dp))
             Text("List")
+        }
+        Spacer(Modifier.width(8.dp))
+        OutlinedButton(onClick = onMap, enabled = count > 0) {
+            Icon(Icons.Default.Map, contentDescription = null)
+            Spacer(Modifier.width(4.dp))
+            Text("Map")
         }
     }
 }

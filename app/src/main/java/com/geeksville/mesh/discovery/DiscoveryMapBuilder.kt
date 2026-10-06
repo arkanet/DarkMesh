@@ -27,18 +27,21 @@ internal object DiscoveryMapBuilder {
         localNodeNum: Long?,
         presetName: String = "",
         knownNodeByNum: Map<Int, Node> = emptyMap(),
+        nodeClass: DiscoveryNodeClass = DiscoveryNodeClass.NEIGHBOR,
     ): DiscoveryMap? {
         if (nodes.isEmpty()) return null
 
-        val directNodes = nodes.filter { it.isZeroHopDirectDiscoveryNode() }
-        val mapNodes = directNodes.map { it.toDiscoveryMapNode(knownNodeByNum) }
-        val mapNodeByNum = (listOfNotNull(localNode) + mapNodes)
+        val classifiedNodes = nodes.filter { it.discoveryNodeClass() == nodeClass }
+        val mapNodes = classifiedNodes
+            .map { it.toDiscoveryMapNode(knownNodeByNum) }
+            .filter { it.hasDiscoveryMapPosition() }
+        val positionedLocalNode = localNode?.takeIf { it.hasDiscoveryMapPosition() }
+        val mapNodeByNum = (listOfNotNull(positionedLocalNode) + mapNodes)
             .associateBy { it.num.toLong() }
         val localMapNode = localNodeNum
             ?.let(mapNodeByNum::get)
-            ?.takeIf { it.hasMapPosition() }
-        val links = localMapNode?.let { origin ->
-            directNodes.mapNotNull { discovered ->
+        val links = localMapNode?.takeIf { nodeClass == DiscoveryNodeClass.NEIGHBOR }?.let { origin ->
+            classifiedNodes.mapNotNull { discovered ->
                 val toNode = mapNodeByNum[discovered.nodeNum]?.takeIf { it.hasMapPosition() }
                     ?: return@mapNotNull null
                 DiscoveryMapLink(
@@ -51,8 +54,13 @@ internal object DiscoveryMapBuilder {
         }.orEmpty()
 
         return DiscoveryMap(
+            nodeClass = nodeClass,
             localNode = localMapNode,
-            nodes = (listOfNotNull(localNode) + mapNodes).distinctBy { it.num },
+            nodes = when (nodeClass) {
+                DiscoveryNodeClass.NEIGHBOR -> (listOfNotNull(localMapNode) + mapNodes).distinctBy { it.num }
+                DiscoveryNodeClass.NETWORK,
+                DiscoveryNodeClass.UNKNOWN -> mapNodes.distinctBy { it.num }
+            },
             links = links.distinctBy {
                 "${it.from.num}:${it.to.num}"
             },
@@ -62,6 +70,7 @@ internal object DiscoveryMapBuilder {
                 localNode = localNode,
                 localNodeNum = localNodeNum,
                 knownNodeByNum = knownNodeByNum,
+                nodeClass = nodeClass,
             ),
         )
     }

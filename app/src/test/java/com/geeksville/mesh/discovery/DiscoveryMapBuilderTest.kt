@@ -28,7 +28,7 @@ import org.meshtastic.proto.MeshProtos
 
 class DiscoveryMapBuilderTest {
     @Test
-    fun buildsNodeListWithZeroHopDirectNodesAndNeighborSnrFallback() {
+    fun buildsNodeListWithPositiveDirectEvidenceAndNeighborSnrFallback() {
         val nodeList = DiscoveryNodeListBuilder.build(
             presetName = PRESET_NAME,
             localNode = Node(
@@ -65,7 +65,7 @@ class DiscoveryMapBuilderTest {
     }
 
     @Test
-    fun buildsOnlyZeroHopDirectMapLinksAndListItems() {
+    fun buildsMapLinksAndListItemsForAllPositiveDirectEvidence() {
         val map = requireNotNull(
             DiscoveryMapBuilder.build(
                 localNode = positionedNode(LOCAL_NODE, LOCAL_LATITUDE, LOCAL_LONGITUDE),
@@ -102,10 +102,9 @@ class DiscoveryMapBuilderTest {
             )
         )
 
-        val link = map.links.single()
-        assertEquals(LOCAL_NODE, link.from.num)
-        assertEquals(NODE_B.toInt(), link.to.num)
-        assertEquals(listOf(NODE_B, NODE_G), map.nodeList.nodes.map { it.nodeNum })
+        assertEquals(setOf(LOCAL_NODE), map.links.map { it.from.num }.toSet())
+        assertEquals(listOf(NODE_B.toInt(), NODE_C.toInt()), map.links.map { it.to.num })
+        assertEquals(listOf(NODE_B, NODE_C, NODE_G), map.nodeList.nodes.map { it.nodeNum })
         assertEquals(
             expectedDistanceMeters(LOCAL_LATITUDE, LOCAL_LONGITUDE, NODE_B_LATITUDE, NODE_B_LONGITUDE),
             map.nodeList.nodes.first { it.nodeNum == NODE_B }.distanceMeters,

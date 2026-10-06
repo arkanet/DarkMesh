@@ -45,6 +45,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -52,6 +53,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -102,6 +104,12 @@ class RadioConfigViewModel @Inject constructor(
     private val requestIds = MutableStateFlow(hashSetOf<Int>())
     private val _radioConfigState = MutableStateFlow(RadioConfigState())
     val radioConfigState: StateFlow<RadioConfigState> = _radioConfigState
+    val modemPresetCapabilities: StateFlow<ModemPresetCapabilities> =
+        radioConfigRepository.modemPresetCapabilities.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = ModemPresetCapabilities.unknown(),
+        )
 
     private val _currentDeviceProfile = MutableStateFlow(deviceProfile {})
     val currentDeviceProfile get() = _currentDeviceProfile.value

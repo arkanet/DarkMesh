@@ -23,12 +23,12 @@ import com.geeksville.mesh.IMeshService
 import com.geeksville.mesh.android.Logging
 import com.geeksville.mesh.database.NodeRegistryRepository
 import com.geeksville.mesh.database.dao.DiscoveryDao
-import com.geeksville.mesh.database.entity.DiscoveryNeighborType
 import com.geeksville.mesh.database.entity.DiscoveryPresetResultEntity
 import com.geeksville.mesh.database.entity.DiscoverySessionEntity
 import com.geeksville.mesh.database.entity.DiscoverySessionStatus
 import com.geeksville.mesh.model.Channel
 import com.geeksville.mesh.model.ChannelOption
+import com.geeksville.mesh.model.ModemPresetCapabilities
 import com.geeksville.mesh.model.Node
 import com.geeksville.mesh.repository.datastore.RadioConfigRepository
 import com.geeksville.mesh.repository.radio.RadioInterfaceService
@@ -41,11 +41,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -83,18 +82,36 @@ class LocalMeshDiscoveryEngine @Inject constructor(
     private val _rankings = MutableStateFlow<List<DiscoveryPresetRank>>(emptyList())
     val rankings = _rankings.asStateFlow()
 
-    /**
-     * Flow representing the current device's home LoRa configuration preset name.
-     * This reflects what the device is currently configured to before any discovery scanning.
-     */
-    val homePresetName: StateFlow<String> = radioConfigRepository.localConfigFlow
-        .filter { it.hasLora() }
-        .map { Channel(loraConfig = it.lora).name }
+    /** Current-device HOME, unavailable until connection and authoritative LoRa config agree. */
+    val discoveryHome: StateFlow<DiscoveryHomeState?> = combine(
+        radioConfigRepository.connectionState,
+        radioConfigRepository.localConfigFlow,
+    ) { connectionState, localConfig ->
+        resolveDiscoveryHome(connectionState, localConfig, radioInterfaceService.getDeviceAddress())
+    }
         .stateIn(
-            scope = CoroutineScope(dispatchers.io),
+            scope = scope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = ChannelOption.LONG_FAST.name
+            initialValue = null,
         )
+
+    /** Discovery is actionable only when current-device HOME is authoritative. */
+    val discoveryReady: StateFlow<Boolean> = discoveryHome
+        .map { it != null }
+        .stateIn(
+            scope = scope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false,
+        )
+
+    /** Shared device/region capability authority; HOME remains independent of this flow. */
+    val modemPresetCapabilities: StateFlow<ModemPresetCapabilities> =
+        radioConfigRepository.modemPresetCapabilities
+            .stateIn(
+                scope = scope,
+                started = SharingStarted.Eagerly,
+                initialValue = ModemPresetCapabilities.unknown(),
+            )
 
     private var scanJob: Job? = null
     private var packetCollectionJob: Job? = null
@@ -136,7 +153,10 @@ class LocalMeshDiscoveryEngine @Inject constructor(
         scanJob?.cancel(CancellationException("Discovery stopped"))
     }
 
-    suspend fun buildDiscoveryMap(presetResultId: Long): DiscoveryMap? {
+    suspend fun buildDiscoveryMap(
+        presetResultId: Long,
+        nodeClass: DiscoveryNodeClass,
+    ): DiscoveryMap? {
         val result = discoveryDao.getPresetResult(presetResultId)
         val nodes = discoveryDao.getDiscoveredNodes(presetResultId)
         val localNodeNum = radioConfigRepository.myNodeInfo.value?.myNodeNum?.toLong()
@@ -150,10 +170,14 @@ class LocalMeshDiscoveryEngine @Inject constructor(
             localNode = localMapNode,
             presetName = result?.presetName.orEmpty(),
             knownNodeByNum = knownNodeByNum,
+            nodeClass = nodeClass,
         )
     }
 
-    suspend fun buildDiscoveryNodeList(presetResultId: Long): DiscoveryNodeList? {
+    suspend fun buildDiscoveryNodeList(
+        presetResultId: Long,
+        nodeClass: DiscoveryNodeClass,
+    ): DiscoveryNodeList? {
         val result = discoveryDao.getPresetResult(presetResultId) ?: return null
         val nodes = discoveryDao.getDiscoveredNodes(presetResultId)
         val localNodeNum = radioConfigRepository.myNodeInfo.value?.myNodeNum?.toLong()
@@ -165,6 +189,7 @@ class LocalMeshDiscoveryEngine @Inject constructor(
             localNode = localMapNode,
             localNodeNum = localNodeNum ?: localMapNode?.num?.toLong(),
             knownNodeByNum = radioConfigRepository.nodeDBbyNum.value,
+            nodeClass = nodeClass,
         )
     }
 
@@ -179,16 +204,28 @@ class LocalMeshDiscoveryEngine @Inject constructor(
         }.toMap()
         val presets = presetResults.map { result ->
             val nodes = discoveryDao.getDiscoveredNodes(result.id)
+            val neighborList = DiscoveryNodeListBuilder.build(
+                presetName = result.presetName,
+                nodes = nodes,
+                localNode = localMapNode,
+                localNodeNum = originNodeNum,
+                knownNodeByNum = radioConfigRepository.nodeDBbyNum.value,
+                nodeClass = DiscoveryNodeClass.NEIGHBOR,
+            )
+            val networkList = DiscoveryNodeListBuilder.build(
+                presetName = result.presetName,
+                nodes = nodes,
+                localNode = localMapNode,
+                localNodeNum = originNodeNum,
+                knownNodeByNum = radioConfigRepository.nodeDBbyNum.value,
+                nodeClass = DiscoveryNodeClass.NETWORK,
+            )
             DiscoveryPresetReport(
                 result = result,
                 rank = rankedResults[result.id] ?: 0,
-                nodeList = DiscoveryNodeListBuilder.build(
-                    presetName = result.presetName,
-                    nodes = nodes,
-                    localNode = localMapNode,
-                    localNodeNum = originNodeNum,
-                    knownNodeByNum = radioConfigRepository.nodeDBbyNum.value,
-                ),
+                neighborList = neighborList,
+                networkList = networkList,
+                unknownNodes = nodes.countDiscoveryNodes(DiscoveryNodeClass.UNKNOWN),
             )
         }.sortedWith(
             compareBy<DiscoveryPresetReport> { if (it.rank == 0) Int.MAX_VALUE else it.rank }
@@ -212,6 +249,7 @@ class LocalMeshDiscoveryEngine @Inject constructor(
     private suspend fun runScan(targets: List<ChannelOption>, dwellSeconds: Long) {
         require(targets.isNotEmpty()) { "Select at least one preset" }
         require(dwellSeconds > 0) { "Dwell time must be greater than zero" }
+        requireDiscoveryTargetsSupported(targets, modemPresetCapabilities.value)
 
         _scanState.value = DiscoveryScanState.Preparing
         restoreRecoverableSessionIfAny()
@@ -323,6 +361,7 @@ class LocalMeshDiscoveryEngine @Inject constructor(
         target: ChannelOption,
         homeLoraConfig: ConfigProtos.Config.LoRaConfig,
     ) {
+        requireDiscoveryTargetsSupported(listOf(target), modemPresetCapabilities.value)
         _scanState.value = DiscoveryScanState.SwitchingPreset(target.name)
         val scanLora = homeLoraConfig.toBuilder()
             .setUsePreset(true)
@@ -403,8 +442,8 @@ class LocalMeshDiscoveryEngine @Inject constructor(
             endedAt = endedAt,
             dwellSeconds = ((endedAt - dwell.startedAt) / ONE_SECOND_MS).coerceAtLeast(1),
             uniqueNodes = nodes.size,
-            directNeighbors = nodes.count { it.neighborType == DiscoveryNeighborType.DIRECT },
-            meshNeighbors = nodes.count { it.neighborType == DiscoveryNeighborType.MESH },
+            directNeighbors = nodes.countDiscoveryNodes(DiscoveryNodeClass.NEIGHBOR),
+            meshNeighbors = nodes.countDiscoveryNodes(DiscoveryNodeClass.NETWORK),
             messageCount = nodes.sumOf { it.messageCount },
             sensorCount = nodes.sumOf { it.sensorPacketCount },
             infrastructureCount = nodes.count { it.isInfrastructure },
@@ -435,11 +474,11 @@ class LocalMeshDiscoveryEngine @Inject constructor(
             sessionId = sessionId,
             uniqueNodes = nodesByNum.size,
             directNeighbors = nodesByNum.values.count { nodes ->
-                nodes.any { it.neighborType == DiscoveryNeighborType.DIRECT }
+                nodes.any { it.discoveryNodeClass() == DiscoveryNodeClass.NEIGHBOR }
             },
             meshNeighbors = nodesByNum.values.count { nodes ->
-                nodes.none { it.neighborType == DiscoveryNeighborType.DIRECT } &&
-                    nodes.any { it.neighborType == DiscoveryNeighborType.MESH }
+                nodes.none { it.discoveryNodeClass() == DiscoveryNodeClass.NEIGHBOR } &&
+                    nodes.any { it.discoveryNodeClass() == DiscoveryNodeClass.NETWORK }
             },
             messageCount = presetResults.sumOf { it.messageCount },
             sensorCount = presetResults.sumOf { it.sensorCount },
@@ -656,6 +695,16 @@ class LocalMeshDiscoveryEngine @Inject constructor(
         private const val PRIMARY_CHANNEL_INDEX = 0
         private const val ZERO_COORDINATE = 0.0
         private const val REPORT_LOCAL_NODE_NUM = 0
+    }
+}
+
+internal fun requireDiscoveryTargetsSupported(
+    targets: Collection<ChannelOption>,
+    capabilities: ModemPresetCapabilities,
+) {
+    val rejected = targets.filterNot { capabilities.isSelectable(it.modemPreset) }
+    require(rejected.isEmpty()) {
+        "Unsupported or unresolved discovery presets: ${rejected.joinToString { it.name }}"
     }
 }
 

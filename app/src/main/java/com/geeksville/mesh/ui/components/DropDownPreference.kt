@@ -61,6 +61,7 @@ fun <T : Enum<T>> DropDownPreference(
 }
 
 @Composable
+@Suppress("LongMethod")
 fun <T> DropDownPreference(
     title: String,
     enabled: Boolean,
@@ -69,6 +70,7 @@ fun <T> DropDownPreference(
     onItemSelected: (T) -> Unit,
     modifier: Modifier = Modifier,
     summary: String? = null,
+    itemEnabled: (T) -> Boolean = { true },
 ) {
     var dropDownExpanded by remember { mutableStateOf(value = false) }
 
@@ -109,6 +111,7 @@ fun <T> DropDownPreference(
         ) {
             items.filterNot { it.first in deprecatedItems }.forEach { item ->
                 DropdownMenuItem(
+                    enabled = itemEnabled(item.first),
                     onClick = {
                         dropDownExpanded = false
                         onItemSelected(item.first)

@@ -17,33 +17,8 @@
 
 package com.geeksville.mesh.discovery
 
-import com.geeksville.mesh.model.Node
-
-data class DiscoveryMapLink(
-    val from: Node,
-    val to: Node,
-    val snr: Float?,
-    val isDirect: Boolean,
-)
-
-data class DiscoveryNodeListItem(
-    val nodeNum: Long,
-    val longName: String,
-    val snr: Float?,
-    val distanceMeters: Int? = null,
-)
-
-data class DiscoveryNodeList(
-    val presetName: String,
-    val originName: String,
-    val nodeClass: DiscoveryNodeClass,
-    val nodes: List<DiscoveryNodeListItem>,
-)
-
-data class DiscoveryMap(
-    val nodeClass: DiscoveryNodeClass,
-    val localNode: Node?,
-    val nodes: List<Node>,
-    val links: List<DiscoveryMapLink>,
-    val nodeList: DiscoveryNodeList,
-)
+enum class DiscoveryNodeClass {
+    NEIGHBOR,
+    NETWORK,
+    UNKNOWN,
+}

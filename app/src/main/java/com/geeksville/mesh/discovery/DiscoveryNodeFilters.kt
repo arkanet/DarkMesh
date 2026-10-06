@@ -20,6 +20,17 @@ package com.geeksville.mesh.discovery
 import com.geeksville.mesh.database.entity.DiscoveredNodeEntity
 import com.geeksville.mesh.database.entity.DiscoveryNeighborType
 
-internal fun DiscoveredNodeEntity.isZeroHopDirectDiscoveryNode(): Boolean {
-    return neighborType == DiscoveryNeighborType.DIRECT && (hopCount == null || hopCount == 0)
+internal fun DiscoveredNodeEntity.hasPositiveHomeDirectEvidence(): Boolean {
+    return neighborType == DiscoveryNeighborType.DIRECT
+}
+
+internal fun DiscoveredNodeEntity.discoveryNodeClass(): DiscoveryNodeClass = when {
+    hasPositiveHomeDirectEvidence() -> DiscoveryNodeClass.NEIGHBOR
+    hopCount != null && hopCount >= 1 -> DiscoveryNodeClass.NETWORK
+    neighborType == DiscoveryNeighborType.MESH && viaNodeNum != null -> DiscoveryNodeClass.NETWORK
+    else -> DiscoveryNodeClass.UNKNOWN
+}
+
+internal fun List<DiscoveredNodeEntity>.countDiscoveryNodes(nodeClass: DiscoveryNodeClass): Int {
+    return distinctBy { it.nodeNum }.count { it.discoveryNodeClass() == nodeClass }
 }

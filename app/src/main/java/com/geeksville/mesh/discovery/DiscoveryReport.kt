@@ -30,7 +30,11 @@ data class DiscoveryReport(
 data class DiscoveryPresetReport(
     val result: DiscoveryPresetResultEntity,
     val rank: Int,
-    val nodeList: DiscoveryNodeList,
+    val neighborList: DiscoveryNodeList,
+    val networkList: DiscoveryNodeList,
+    val unknownNodes: Int,
 ) {
-    val directNodes: Int = nodeList.nodes.size
+    val directNodes: Int = neighborList.nodes.size
+    val networkNodes: Int = networkList.nodes.size
+    val totalNodes: Int = directNodes + networkNodes + unknownNodes
 }

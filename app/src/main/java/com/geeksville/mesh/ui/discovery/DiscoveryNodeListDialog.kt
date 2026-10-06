@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import com.emp3r0r7.darkmesh.R
 import com.geeksville.mesh.discovery.DiscoveryNodeList
 import com.geeksville.mesh.discovery.DiscoveryNodeListItem
+import com.geeksville.mesh.discovery.DiscoveryNodeClass
 import com.geeksville.mesh.model.formatNeighborDiscoverySnr
 import com.geeksville.mesh.model.neighborDiscoverySnrColor
 
@@ -106,6 +107,11 @@ private fun DiscoveryNodeListHeader(nodeList: DiscoveryNodeList) {
                 textAlign = TextAlign.Center,
             )
         }
+        Text(
+            text = "${nodeList.nodeClass.displayName()} nodes (${nodeList.nodes.size})",
+            style = MaterialTheme.typography.body2,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -139,7 +145,7 @@ private fun DiscoveryNodeListRows(
 ) {
     if (nodeList.nodes.isEmpty()) {
         Text(
-            text = stringResource(R.string.neighbor_discovery_no_neighbors),
+            text = "No ${nodeList.nodeClass.displayName().lowercase()} nodes",
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.body1,
@@ -150,6 +156,8 @@ private fun DiscoveryNodeListRows(
         }
     }
 }
+
+private fun DiscoveryNodeClass.displayName(): String = name.lowercase().replaceFirstChar { it.titlecase() }
 
 @Composable
 private fun DiscoveryNodeListRow(

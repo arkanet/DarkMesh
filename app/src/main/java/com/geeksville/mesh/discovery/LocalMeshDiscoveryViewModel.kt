@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -42,11 +43,18 @@ class LocalMeshDiscoveryViewModel @Inject constructor(
     val sessions = discoveryDao.getSessions()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val discoveryHome = engine.discoveryHome
+
     /**
-     * Flow representing the current device's home LoRa configuration preset name.
-     * This is used to preset the Discovery UI with the device's actual current configuration.
+     * Flow indicating whether Discovery is ready to start.
+     * Requires both: device connected AND authoritative LoRa configuration available.
      */
-    val homePresetName = engine.homePresetName
+    val discoveryReady = engine.discoveryReady
+    val modemPresetCapabilities = engine.modemPresetCapabilities
+
+    private val targetSelection = DiscoveryTargetSelection()
+    private val _selectedPresetNames = MutableStateFlow<Set<String>>(emptySet())
+    val selectedPresetNames = _selectedPresetNames.asStateFlow()
 
     private val _selectedReport = MutableStateFlow<DiscoveryReport?>(null)
     val selectedReport = _selectedReport.asStateFlow()
@@ -60,6 +68,25 @@ class LocalMeshDiscoveryViewModel @Inject constructor(
     private val _messageEvents = MutableSharedFlow<String>()
     val messageEvents = _messageEvents.asSharedFlow()
 
+    init {
+        viewModelScope.launch {
+            combine(discoveryHome, scanState, modemPresetCapabilities) { home, state, capabilities ->
+                Triple(home, state.isRunning, capabilities)
+            }.collect { (home, scanRunning, capabilities) ->
+                    _selectedPresetNames.value = targetSelection.onHomeChanged(
+                        home = home,
+                        capabilities = capabilities,
+                        scanRunning = scanRunning,
+                    )
+                }
+        }
+    }
+
+    fun togglePreset(option: ChannelOption) {
+        if (!discoveryReady.value || scanState.value.isRunning) return
+        _selectedPresetNames.value = targetSelection.toggle(option, modemPresetCapabilities.value)
+    }
+
     fun startScan(selectedPresets: Set<ChannelOption>, dwellSeconds: Long) {
         engine.startScan(selectedPresets, dwellSeconds)
     }
@@ -68,22 +95,29 @@ class LocalMeshDiscoveryViewModel @Inject constructor(
         engine.stopScan()
     }
 
-    fun requestMap(presetResultId: Long) {
+    fun requestMap(
+        presetResultId: Long,
+        nodeClass: DiscoveryNodeClass,
+    ) {
         viewModelScope.launch {
-            val map = engine.buildDiscoveryMap(presetResultId)
-            if (map == null || map.links.isEmpty()) {
-                _messageEvents.emit("Discovery map unavailable: missing GPS links")
+            val map = engine.buildDiscoveryMap(presetResultId, nodeClass)
+            val hasClassifiedMarker = map?.nodes?.any { it.num != map.localNode?.num } == true
+            if (!hasClassifiedMarker) {
+                _messageEvents.emit("${nodeClass.displayName()} map unavailable: missing GPS positions")
             } else {
-                _mapEvents.emit(map)
+                _mapEvents.emit(requireNotNull(map))
             }
         }
     }
 
-    fun requestList(presetResultId: Long) {
+    fun requestList(
+        presetResultId: Long,
+        nodeClass: DiscoveryNodeClass,
+    ) {
         viewModelScope.launch {
-            val nodeList = engine.buildDiscoveryNodeList(presetResultId)
+            val nodeList = engine.buildDiscoveryNodeList(presetResultId, nodeClass)
             if (nodeList == null) {
-                _messageEvents.emit("Discovery list unavailable")
+                _messageEvents.emit("${nodeClass.displayName()} list unavailable")
             } else {
                 _listEvents.emit(nodeList)
             }
@@ -114,4 +148,6 @@ class LocalMeshDiscoveryViewModel @Inject constructor(
             _messageEvents.emit("Discovery report deleted")
         }
     }
+
+    private fun DiscoveryNodeClass.displayName(): String = name.lowercase().replaceFirstChar { it.titlecase() }
 }

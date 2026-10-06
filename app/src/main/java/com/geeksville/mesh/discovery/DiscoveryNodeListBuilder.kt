@@ -27,6 +27,7 @@ internal object DiscoveryNodeListBuilder {
         localNode: Node?,
         localNodeNum: Long?,
         knownNodeByNum: Map<Int, Node> = emptyMap(),
+        nodeClass: DiscoveryNodeClass = DiscoveryNodeClass.NEIGHBOR,
     ): DiscoveryNodeList {
         val originName = localNode?.discoveryListName()
             ?: localNodeNum?.let { "Local node ${formatNodeNum(it)}" }
@@ -35,8 +36,9 @@ internal object DiscoveryNodeListBuilder {
         return DiscoveryNodeList(
             presetName = presetName,
             originName = originName,
+            nodeClass = nodeClass,
             nodes = nodes
-                .filter { it.isZeroHopDirectDiscoveryNode() }
+                .filter { it.discoveryNodeClass() == nodeClass }
                 .distinctBy { it.nodeNum }
                 .sortedWith(
                     compareByDescending<DiscoveredNodeEntity> {

@@ -634,12 +634,7 @@ fun MapView(
             is MapMode.Discovery -> {
                 map.drawDiscovery(mode.discovery)
 
-                val points = mode.discovery.links.flatMap { link ->
-                    listOfNotNull(
-                        link.from.toGeoPointOrNull(),
-                        link.to.toGeoPointOrNull(),
-                    )
-                }
+                val points = mode.discovery.nodes.mapNotNull { it.toGeoPointOrNull() }
 
                 if (points.isNotEmpty()) {
                     map.zoomToBoundingBox(

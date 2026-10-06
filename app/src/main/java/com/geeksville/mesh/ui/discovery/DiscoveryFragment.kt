@@ -68,11 +68,15 @@ import androidx.fragment.app.activityViewModels
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.geeksville.mesh.database.entity.DiscoverySessionEntity
+import com.geeksville.mesh.discovery.DiscoveryNodeClass
 import com.geeksville.mesh.discovery.DiscoveryNodeList
 import com.geeksville.mesh.discovery.DiscoveryPresetRank
 import com.geeksville.mesh.discovery.DiscoveryScanState
+import com.geeksville.mesh.discovery.DiscoveryHomeState
 import com.geeksville.mesh.discovery.LocalMeshDiscoveryViewModel
 import com.geeksville.mesh.model.ChannelOption
+import com.geeksville.mesh.model.ModemPresetCapabilities
+import com.geeksville.mesh.model.ModemPresetSupport
 import com.geeksville.mesh.model.UIViewModel
 import com.geeksville.mesh.ui.ScreenFragment
 import com.geeksville.mesh.ui.theme.AppTheme
@@ -161,13 +165,11 @@ private fun DiscoveryHomeScreen(viewModel: LocalMeshDiscoveryViewModel) {
     val currentSession by viewModel.currentSession.collectAsStateWithLifecycle()
     val rankings by viewModel.rankings.collectAsStateWithLifecycle()
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
-    val initialHomePreset by viewModel.homePresetName.collectAsStateWithLifecycle()
+    val discoveryHome by viewModel.discoveryHome.collectAsStateWithLifecycle()
+    val discoveryReady by viewModel.discoveryReady.collectAsStateWithLifecycle()
+    val presetCapabilities by viewModel.modemPresetCapabilities.collectAsStateWithLifecycle()
+    val selectedPresetNames by viewModel.selectedPresetNames.collectAsStateWithLifecycle()
     var dwellText by rememberSaveable { mutableStateOf(DEFAULT_DWELL_SECONDS.toString()) }
-    var selectedPresetNames by rememberSaveable {
-        mutableStateOf(
-            listOf(initialHomePreset ?: ChannelOption.LONG_FAST.name)
-        )
-    }
     var selectedSessionIds by remember { mutableStateOf(emptySet<Long>()) }
     var showDeleteSessionsDialog by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
@@ -189,10 +191,13 @@ private fun DiscoveryHomeScreen(viewModel: LocalMeshDiscoveryViewModel) {
     }
 
     val selectedPresets = ChannelOption.entries
-        .filter { it.name in selectedPresetNames }
+        .filter {
+            it.name in selectedPresetNames && presetCapabilities.isSelectable(it.modemPreset)
+        }
         .toSet()
     val dwellSeconds = dwellText.toLongOrNull()
-    val canStart = !scanState.isRunning && selectedPresets.isNotEmpty() &&
+    val canStart = discoveryReady && presetCapabilities.isResolved && !scanState.isRunning &&
+            selectedPresets.isNotEmpty() &&
             dwellSeconds != null && dwellSeconds > 0
 
     DiscoveryContent(
@@ -203,14 +208,11 @@ private fun DiscoveryHomeScreen(viewModel: LocalMeshDiscoveryViewModel) {
         selectedPresetNames = selectedPresetNames,
         dwellText = dwellText,
         canStart = canStart,
+        discoveryReady = discoveryReady,
+        discoveryHome = discoveryHome,
+        presetCapabilities = presetCapabilities,
         selectedSessionIds = selectedSessionIds,
-        onTogglePreset = { option ->
-            selectedPresetNames = if (option.name in selectedPresetNames) {
-                selectedPresetNames - option.name
-            } else {
-                selectedPresetNames + option.name
-            }
-        },
+        onTogglePreset = viewModel::togglePreset,
         onDwellChange = { dwellText = it.filter(Char::isDigit).take(MAX_DWELL_DIGITS) },
         onStart = {
             viewModel.startScan(selectedPresets, dwellSeconds ?: DEFAULT_DWELL_SECONDS)
@@ -264,16 +266,19 @@ private fun DiscoveryContent(
     currentSession: DiscoverySessionEntity?,
     rankings: List<DiscoveryPresetRank>,
     sessions: List<DiscoverySessionEntity>,
-    selectedPresetNames: List<String>,
+    selectedPresetNames: Set<String>,
     dwellText: String,
     canStart: Boolean,
+    discoveryReady: Boolean,
+    discoveryHome: DiscoveryHomeState?,
+    presetCapabilities: ModemPresetCapabilities,
     selectedSessionIds: Set<Long>,
     onTogglePreset: (ChannelOption) -> Unit,
     onDwellChange: (String) -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
-    onMap: (Long) -> Unit,
-    onList: (Long) -> Unit,
+    onMap: (Long, DiscoveryNodeClass) -> Unit,
+    onList: (Long, DiscoveryNodeClass) -> Unit,
     onCurrentReport: (Long) -> Unit,
     onSessionClick: (Long) -> Unit,
     onSessionLongClick: (Long) -> Unit,
@@ -295,6 +300,9 @@ private fun DiscoveryContent(
                     selectedPresetNames = selectedPresetNames,
                     dwellText = dwellText,
                     canStart = canStart,
+                    discoveryReady = discoveryReady,
+                    discoveryHome = discoveryHome,
+                    presetCapabilities = presetCapabilities,
                     onTogglePreset = onTogglePreset,
                     onDwellChange = onDwellChange,
                     onStart = onStart,
@@ -332,16 +340,29 @@ private fun DiscoveryContent(
 @Composable
 private fun DiscoveryControls(
     scanState: DiscoveryScanState,
-    selectedPresetNames: List<String>,
+    selectedPresetNames: Set<String>,
     dwellText: String,
     canStart: Boolean,
+    discoveryReady: Boolean,
+    discoveryHome: DiscoveryHomeState?,
+    presetCapabilities: ModemPresetCapabilities,
     onTogglePreset: (ChannelOption) -> Unit,
     onDwellChange: (String) -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
 ) {
+    val enabled = discoveryReady && !scanState.isRunning
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Local Mesh Discovery", style = MaterialTheme.typography.h6)
+        Text(
+            text = "Home: ${discoveryHome.discoveryHomeLabel()}",
+            style = MaterialTheme.typography.body2,
+            color = if (discoveryReady) {
+                MaterialTheme.colors.onSurface
+            } else {
+                MaterialTheme.colors.onSurface.copy(alpha = 0.5f)
+            },
+        )
         OutlinedTextField(
             value = dwellText,
             onValueChange = onDwellChange,
@@ -349,11 +370,13 @@ private fun DiscoveryControls(
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
+            enabled = enabled,
         )
         PresetGrid(
             selectedPresetNames = selectedPresetNames,
             onTogglePreset = onTogglePreset,
-            enabled = !scanState.isRunning,
+            enabled = enabled,
+            presetCapabilities = presetCapabilities,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
@@ -378,20 +401,28 @@ private fun DiscoveryControls(
 
 @Composable
 private fun PresetGrid(
-    selectedPresetNames: List<String>,
+    selectedPresetNames: Set<String>,
     onTogglePreset: (ChannelOption) -> Unit,
     enabled: Boolean,
+    presetCapabilities: ModemPresetCapabilities,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         ChannelOption.entries.chunked(PRESET_COLUMNS).forEach { rowOptions ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowOptions.forEach { option ->
+                    val support = presetCapabilities.supportFor(option.modemPreset)
+                    val optionEnabled = enabled && support == ModemPresetSupport.SUPPORTED
+                    val supportSuffix = when (support) {
+                        ModemPresetSupport.SUPPORTED -> ""
+                        ModemPresetSupport.UNSUPPORTED -> " (Unsupported)"
+                        ModemPresetSupport.UNKNOWN -> " (Unknown)"
+                    }
                     Row(
                         modifier = Modifier
                             .weight(1f)
                             .toggleable(
                                 value = option.name in selectedPresetNames,
-                                enabled = enabled,
+                                enabled = optionEnabled,
                                 onValueChange = { onTogglePreset(option) },
                             )
                             .padding(vertical = 4.dp),
@@ -400,14 +431,28 @@ private fun PresetGrid(
                         Checkbox(
                             checked = option.name in selectedPresetNames,
                             onCheckedChange = null,
-                            enabled = enabled,
+                            enabled = optionEnabled,
                         )
-                        Text(option.displayName())
+                        Text(
+                            text = option.displayName() + supportSuffix,
+                            color = if (support == ModemPresetSupport.SUPPORTED) {
+                                MaterialTheme.colors.onSurface
+                            } else {
+                                MaterialTheme.colors.onSurface.copy(alpha = DISABLED_PRESET_ALPHA)
+                            },
+                        )
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun DiscoveryHomeState?.discoveryHomeLabel(): String {
+    return this?.initialTarget?.displayName()
+        ?: this?.presetName?.lowercase()?.replaceFirstChar { it.titlecase() }
+        ?: "Unavailable"
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -460,3 +505,4 @@ internal fun SectionTitle(text: String) {
 private const val DEFAULT_DWELL_SECONDS = 60L
 private const val PRESET_COLUMNS = 2
 private const val MAX_DWELL_DIGITS = 4
+private const val DISABLED_PRESET_ALPHA = 0.45f

@@ -174,15 +174,19 @@ class DiscoveryPacketCollector(
 
     private fun MutableDiscoveredNode.updatePacketMetadata(packet: MeshProtos.MeshPacket) {
         packetCount += 1
-        neighborType = if (packet.hopsAway() in DIRECT_HOP_RANGE) {
-            DiscoveryNeighborType.DIRECT
-        } else {
-            DiscoveryNeighborType.MESH
+        val observedHops = packet.hopsAway()
+        when {
+            observedHops in DIRECT_HOP_RANGE -> neighborType = DiscoveryNeighborType.DIRECT
+            observedHops > MAX_DIRECT_HOPS && neighborType != DiscoveryNeighborType.DIRECT -> {
+                neighborType = DiscoveryNeighborType.MESH
+            }
         }
 
         if (packet.rxSnr != 0f) snr = packet.rxSnr
         if (packet.hasRxRssi()) rssi = packet.rxRssi
-        packet.hopsAway().takeIf { it >= 0 }?.let { hopCount = it }
+        observedHops.takeIf { it >= 0 }?.let { hops ->
+            hopCount = hopCount?.let { minOf(it, hops) } ?: hops
+        }
         lastSeen = if (packet.hasRxTime()) packet.rxTime.toLong() else System.currentTimeMillis()
     }
 
@@ -302,7 +306,7 @@ private data class MutableDiscoveredNode(
     var longName: String?,
     var shortName: String?,
     var defaultName: String?,
-    var neighborType: String = DiscoveryNeighborType.MESH,
+    var neighborType: String = DiscoveryNeighborType.UNKNOWN,
     var latitude: Double?,
     var longitude: Double?,
     var hopCount: Int?,
