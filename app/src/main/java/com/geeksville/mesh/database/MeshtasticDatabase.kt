@@ -26,6 +26,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.AutoMigrationSpec
+import com.geeksville.mesh.database.dao.CanonicalIdentityMigrationDao
 import com.geeksville.mesh.database.dao.DiscoveryDao
 import com.geeksville.mesh.database.dao.MeshLogDao
 import com.geeksville.mesh.database.dao.NodeInfoDao
@@ -33,6 +34,7 @@ import com.geeksville.mesh.database.dao.NodeRegistryDao
 import com.geeksville.mesh.database.dao.PacketDao
 import com.geeksville.mesh.database.dao.QuickChatActionDao
 import com.geeksville.mesh.database.entity.ContactSettings
+import com.geeksville.mesh.database.entity.CanonicalIdentityMigrationJournal
 import com.geeksville.mesh.database.entity.DiscoveredNodeEntity
 import com.geeksville.mesh.database.entity.DiscoveryPresetResultEntity
 import com.geeksville.mesh.database.entity.DiscoverySessionEntity
@@ -59,6 +61,7 @@ import com.geeksville.mesh.database.entity.ReactionEntity
         DiscoverySessionEntity::class,
         DiscoveryPresetResultEntity::class,
         DiscoveredNodeEntity::class,
+        CanonicalIdentityMigrationJournal::class,
     ],
     autoMigrations = [
         AutoMigration(from = 3, to = 4),
@@ -85,8 +88,9 @@ import com.geeksville.mesh.database.entity.ReactionEntity
         AutoMigration(from = 24, to = 25),
         AutoMigration(from = 25, to = 26),
         AutoMigration(from = 26, to = 27),
+        AutoMigration(from = 27, to = 28),
     ],
-    version = 27,
+    version = 28,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -97,6 +101,7 @@ abstract class MeshtasticDatabase : RoomDatabase() {
     abstract fun quickChatActionDao(): QuickChatActionDao
     abstract fun nodeRegistryDao(): NodeRegistryDao
     abstract fun discoveryDao(): DiscoveryDao
+    abstract fun canonicalIdentityMigrationDao(): CanonicalIdentityMigrationDao
 
     companion object {
         fun getDatabase(context: Context): MeshtasticDatabase {

@@ -35,6 +35,7 @@ class MeshtasticDatabaseTest {
     companion object {
         private const val TEST_DB = "migration-test"
         private const val TEST_DB_26_TO_27 = "migration-test-26-27"
+        private const val TEST_DB_27_TO_28 = "migration-test-27-28"
     }
 
     @get:Rule
@@ -88,4 +89,84 @@ class MeshtasticDatabaseTest {
             close()
         }
     }
+
+    @Test
+    @Throws(IOException::class)
+    fun migrate27To28PreservesExistingStateAndCreatesEmptyJournal() {
+        helper.createDatabase(TEST_DB_27_TO_28, 27).apply {
+            execSQL(
+                """
+                INSERT INTO my_node (
+                    myNodeNum, model, firmwareVersion, couldUpdate, shouldUpdate,
+                    currentPacketId, messageTimeoutMsec, minAppVersion, maxChannels, hasWifi, deviceId
+                ) VALUES (42, 'heltec-v4', '2.8.1', 0, 0, 1, 300000, 1, 8, 0, x'01020304')
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO nodes (
+                    num, user, long_name, short_name, position, latitude, longitude,
+                    snr, rssi, last_heard, device_metrics, channel, via_mqtt, hops_away,
+                    is_favorite, is_ignored, environment_metrics, power_metrics, paxcounter,
+                    role, node_status
+                ) VALUES (
+                    42, x'', 'Node', 'NOD', x'', 1.0, 2.0,
+                    3.0, -90, 4, x'', 0, 0, 1,
+                    0, 0, x'', x'', x'', 'CLIENT', NULL
+                )
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO packet (
+                    uuid, myNodeNum, port_num, contact_key, received_time, read,
+                    data, packet_id, routing_error, reply_id
+                ) VALUES (
+                    1, 42, 1, '0!0000002a', 5, 1,
+                    '{"to":"!0000002a","bytes":[],"dataType":1}', 6, -1, 0
+                )
+                """.trimIndent(),
+            )
+            execSQL("INSERT INTO contact_settings (contact_key, muteUntil) VALUES ('0!0000002a', 7)")
+            execSQL("INSERT INTO reactions (reply_id, user_id, emoji, timestamp) VALUES (6, '!0000002a', 'ok', 8)")
+            execSQL("INSERT INTO metadata (num, proto, timestamp) VALUES (42, x'', 9)")
+            execSQL(
+                """
+                INSERT INTO node_registry (
+                    nodeId, shortName, defaultName, longName, nodeNum, publicKey,
+                    latitudeI, longitudeI, lastSeen, hopCount, lastRssi
+                ) VALUES (
+                    '!0000002a', 'NOD', 'Meshtastic 002a', 'Node', 42,
+                    x'000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f',
+                    100, 200, 10, 1, -90
+                )
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        Room.databaseBuilder(
+            InstrumentationRegistry.getInstrumentation().targetContext,
+            MeshtasticDatabase::class.java,
+            TEST_DB_27_TO_28,
+        ).build().apply {
+            val readable = openHelper.readableDatabase
+            assertEquals(1, readable.rowCount("my_node"))
+            assertEquals(1, readable.rowCount("nodes"))
+            assertEquals(1, readable.rowCount("packet"))
+            assertEquals(1, readable.rowCount("contact_settings"))
+            assertEquals(1, readable.rowCount("reactions"))
+            assertEquals(1, readable.rowCount("metadata"))
+            assertEquals(1, readable.rowCount("node_registry"))
+            assertEquals(0, readable.rowCount("canonical_identity_migration"))
+            assertArrayEquals(byteArrayOf(1, 2, 3, 4), nodeInfoDao().getMyNodeInfoSnapshot()?.deviceId)
+            close()
+        }
+    }
+
+    private fun androidx.sqlite.db.SupportSQLiteDatabase.rowCount(table: String): Int =
+        query("SELECT COUNT(*) FROM $table").use { cursor ->
+            cursor.moveToFirst()
+            cursor.getInt(0)
+        }
 }
