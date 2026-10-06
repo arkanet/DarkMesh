@@ -17,9 +17,11 @@
 
 package com.geeksville.mesh.database.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.geeksville.mesh.MyNodeInfo
+import org.meshtastic.proto.MeshProtos
 
 @Entity(tableName = "my_node")
 data class MyNodeEntity(
@@ -34,6 +36,8 @@ data class MyNodeEntity(
     val minAppVersion: Int,
     val maxChannels: Int,
     val hasWifi: Boolean,
+    @ColumnInfo(typeAffinity = ColumnInfo.BLOB, defaultValue = "x''")
+    val deviceId: ByteArray = byteArrayOf(),
 ) {
     /** A human readable description of the software/hardware version */
     val firmwareString: String get() = "$model $firmwareVersion"
@@ -52,5 +56,30 @@ data class MyNodeEntity(
         hasWifi = hasWifi,
         channelUtilization = 0f,
         airUtilTx = 0f,
+        deviceId = deviceId.copyOf(),
     )
 }
+
+enum class LocalDeviceContinuity {
+    SAME_PHYSICAL_DEVICE,
+    SAME_PHYSICAL_DEVICE_NODE_MIGRATION,
+    DIFFERENT_DEVICE,
+    LEGACY_OR_UNKNOWN_IDENTITY,
+}
+
+fun classifyLocalDeviceContinuity(
+    stored: MyNodeEntity?,
+    incoming: MyNodeEntity,
+): LocalDeviceContinuity {
+    val storedDeviceId = stored?.deviceId
+    val incomingDeviceId = incoming.deviceId
+    return when {
+        storedDeviceId == null || storedDeviceId.isEmpty() || incomingDeviceId.isEmpty() ->
+            LocalDeviceContinuity.LEGACY_OR_UNKNOWN_IDENTITY
+        !storedDeviceId.contentEquals(incomingDeviceId) -> LocalDeviceContinuity.DIFFERENT_DEVICE
+        stored?.myNodeNum == incoming.myNodeNum -> LocalDeviceContinuity.SAME_PHYSICAL_DEVICE
+        else -> LocalDeviceContinuity.SAME_PHYSICAL_DEVICE_NODE_MIGRATION
+    }
+}
+
+fun MeshProtos.MyNodeInfo.deviceIdBytes(): ByteArray = deviceId.toByteArray()

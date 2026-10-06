@@ -113,10 +113,7 @@ class NodeRepository @Inject constructor(
     }
 
     suspend fun installNodeDB(mi: MyNodeEntity, nodes: List<NodeEntity>) = withContext(dispatchers.io) {
-        nodeInfoDao.clearMyNodeInfo()
-        nodeInfoDao.setMyNodeInfo(mi) // set MyNodeEntity first
-        nodeInfoDao.clearNodeInfo()
-        nodeInfoDao.putAll(nodes)
+        nodeInfoDao.installNodeDB(mi, nodes)
     }
 
     suspend fun clearNodeDB() = withContext(dispatchers.io) {

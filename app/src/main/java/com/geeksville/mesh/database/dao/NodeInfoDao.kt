@@ -24,10 +24,12 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import com.geeksville.mesh.database.entity.LocalDeviceContinuity
 import com.geeksville.mesh.database.entity.MetadataEntity
 import com.geeksville.mesh.database.entity.MyNodeEntity
 import com.geeksville.mesh.database.entity.NodeEntity
 import com.geeksville.mesh.database.entity.NodeWithRelations
+import com.geeksville.mesh.database.entity.classifyLocalDeviceContinuity
 import kotlinx.coroutines.flow.Flow
 
 @Suppress("TooManyFunctions")
@@ -37,11 +39,17 @@ interface NodeInfoDao {
     @Query("SELECT * FROM my_node")
     fun getMyNodeInfo(): Flow<MyNodeEntity?>
 
+    @Query("SELECT * FROM my_node LIMIT 1")
+    fun getMyNodeInfoSnapshot(): MyNodeEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun setMyNodeInfo(myInfo: MyNodeEntity)
 
     @Query("DELETE FROM my_node")
     fun clearMyNodeInfo()
+
+    @Query("UPDATE packet SET myNodeNum = :newNodeNum WHERE myNodeNum = :oldNodeNum")
+    fun migratePacketOwner(oldNodeNum: Int, newNodeNum: Int): Int
 
     @Query(
         """
@@ -123,6 +131,21 @@ interface NodeInfoDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun putAll(nodes: List<NodeEntity>)
+
+    @Transaction
+    fun installNodeDB(myInfo: MyNodeEntity, nodes: List<NodeEntity>): LocalDeviceContinuity {
+        val previousMyInfo = getMyNodeInfoSnapshot()
+        val continuity = classifyLocalDeviceContinuity(previousMyInfo, myInfo)
+        if (continuity == LocalDeviceContinuity.SAME_PHYSICAL_DEVICE_NODE_MIGRATION) {
+            val previousNodeNum = requireNotNull(previousMyInfo).myNodeNum
+            migratePacketOwner(previousNodeNum, myInfo.myNodeNum)
+        }
+        clearMyNodeInfo()
+        setMyNodeInfo(myInfo)
+        clearNodeInfo()
+        putAll(nodes)
+        return continuity
+    }
 
     @Query("DELETE FROM nodes")
     fun clearNodeInfo()

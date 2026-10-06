@@ -23,6 +23,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.geeksville.mesh.database.MeshtasticDatabase
 import org.junit.Rule
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.IOException
@@ -32,6 +34,7 @@ class MeshtasticDatabaseTest {
 
     companion object {
         private const val TEST_DB = "migration-test"
+        private const val TEST_DB_26_TO_27 = "migration-test-26-27"
     }
 
     @get:Rule
@@ -56,6 +59,33 @@ class MeshtasticDatabaseTest {
             TEST_DB
         ).build().apply {
             openHelper.writableDatabase.close()
+        }
+    }
+
+    @Test
+    @Throws(IOException::class)
+    fun migrate26To27AddsEmptyDeviceIdWithoutLosingLocalIdentity() {
+        helper.createDatabase(TEST_DB_26_TO_27, 26).apply {
+            execSQL(
+                """
+                INSERT INTO my_node (
+                    myNodeNum, model, firmwareVersion, couldUpdate, shouldUpdate,
+                    currentPacketId, messageTimeoutMsec, minAppVersion, maxChannels, hasWifi
+                ) VALUES (42, 'heltec-v4', '2.7.26', 0, 0, 1, 300000, 1, 8, 0)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        Room.databaseBuilder(
+            InstrumentationRegistry.getInstrumentation().targetContext,
+            MeshtasticDatabase::class.java,
+            TEST_DB_26_TO_27,
+        ).build().apply {
+            val migrated = nodeInfoDao().getMyNodeInfoSnapshot()
+            assertEquals(42, migrated?.myNodeNum)
+            assertArrayEquals(byteArrayOf(), migrated?.deviceId)
+            close()
         }
     }
 }

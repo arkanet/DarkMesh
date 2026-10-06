@@ -56,6 +56,7 @@ import com.geeksville.mesh.database.NodeRegistryRepository
 import com.geeksville.mesh.database.PacketRepository
 import com.geeksville.mesh.database.entity.MeshLog
 import com.geeksville.mesh.database.entity.MyNodeEntity
+import com.geeksville.mesh.database.entity.deviceIdBytes
 import com.geeksville.mesh.database.entity.NodeEntity
 import com.geeksville.mesh.database.entity.NodeRegistry
 import com.geeksville.mesh.database.entity.Packet
@@ -2401,6 +2402,7 @@ class MeshService : Service(), Logging {
                     minAppVersion = minAppVersion,
                     maxChannels = 8,
                     hasWifi = metadata.hasWifi,
+                    deviceId = deviceIdBytes(),
                 )
             }
             serviceScope.handledLaunch {
