@@ -36,9 +36,25 @@ class ModemPresetCapabilityAuthorityTest {
         val capabilities = resolve(lora(ModemPreset.MEDIUM_FAST, RegionCode.EU_868))
 
         assertEquals(ModemPreset.MEDIUM_FAST, capabilities.currentPreset)
+        assertEquals(
+            CurrentLoRaMode.Preset(RegionCode.EU_868, ModemPreset.MEDIUM_FAST),
+            capabilities.currentMode,
+        )
         assertEquals(DARKMESH_2_7_26_DEVICE_PRESETS, capabilities.deviceSupportedPresets)
         assertEquals(9, capabilities.deviceSupportedPresets.size)
-        assertEquals(7, capabilities.selectablePresets.size)
+        assertEquals(
+            setOf(
+                ModemPreset.LONG_FAST,
+                ModemPreset.LONG_SLOW,
+                ModemPreset.MEDIUM_SLOW,
+                ModemPreset.MEDIUM_FAST,
+                ModemPreset.SHORT_SLOW,
+                ModemPreset.SHORT_FAST,
+                ModemPreset.LONG_MODERATE,
+            ),
+            capabilities.selectablePresets,
+        )
+        assertEquals(capabilities.selectablePresets, capabilities.currentRegionNativePresets)
         assertFalse(ModemPreset.LONG_TURBO in capabilities.selectablePresets)
         assertFalse(ModemPreset.SHORT_TURBO in capabilities.selectablePresets)
         assertTrue(ModemPreset.MEDIUM_FAST in capabilities.selectablePresets)

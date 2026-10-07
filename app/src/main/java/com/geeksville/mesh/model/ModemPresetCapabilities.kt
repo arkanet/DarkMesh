@@ -21,6 +21,7 @@ import org.meshtastic.proto.ConfigProtos.Config.LoRaConfig
 import org.meshtastic.proto.ConfigProtos.Config.LoRaConfig.ModemPreset
 import org.meshtastic.proto.ConfigProtos.Config.LoRaConfig.RegionCode
 import org.meshtastic.proto.MeshProtos.DeviceMetadata
+import org.meshtastic.proto.MeshProtos.LoRaRegionPresetMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,7 +33,40 @@ enum class ModemPresetSupport {
 
 enum class ModemPresetCapabilitySource {
     DARKMESH_2_7_26_EXACT_SOURCE,
+    WIRE_REGION_PRESET_MAP,
     UNKNOWN,
+}
+
+sealed interface CurrentLoRaMode {
+    val region: RegionCode
+
+    data class Preset(
+        override val region: RegionCode,
+        val modemPreset: ModemPreset,
+    ) : CurrentLoRaMode
+
+    data class Custom(
+        override val region: RegionCode,
+        val bandwidth: Int,
+        val spreadFactor: Int,
+        val codingRate: Int,
+    ) : CurrentLoRaMode
+}
+
+enum class PresetRegionTransition {
+    SAME_REGION,
+    FIRMWARE_DETERMINED_REGION_TRANSITION,
+}
+
+internal fun LoRaConfig.toCurrentLoRaMode(): CurrentLoRaMode = if (usePreset) {
+    CurrentLoRaMode.Preset(region = region, modemPreset = modemPreset)
+} else {
+    CurrentLoRaMode.Custom(
+        region = region,
+        bandwidth = bandwidth,
+        spreadFactor = spreadFactor,
+        codingRate = codingRate,
+    )
 }
 
 data class ModemPresetCapabilities(
@@ -41,16 +75,37 @@ data class ModemPresetCapabilities(
     val currentRegion: RegionCode?,
     val deviceSupportedPresets: Set<ModemPreset>,
     val regionValidPresets: Set<ModemPreset>?,
+    val currentMode: CurrentLoRaMode? = currentPreset?.let { preset ->
+        currentRegion?.let { region -> CurrentLoRaMode.Preset(region, preset) }
+    },
+    val currentRegionNativePresets: Set<ModemPreset>? = if (
+        source != ModemPresetCapabilitySource.UNKNOWN && regionValidPresets != null
+    ) {
+        deviceSupportedPresets.intersect(regionValidPresets)
+    } else {
+        null
+    },
+    val advertisedSelectablePresets: Set<ModemPreset>? = if (
+        source != ModemPresetCapabilitySource.UNKNOWN
+    ) {
+        currentRegionNativePresets
+    } else {
+        null
+    },
+    val regionTransitionByPreset: Map<ModemPreset, PresetRegionTransition> =
+        advertisedSelectablePresets.orEmpty().associateWith { PresetRegionTransition.SAME_REGION },
+    val defaultPreset: ModemPreset? = null,
+    val licensedOnly: Boolean? = null,
 ) {
     val isResolved: Boolean
-        get() = source != ModemPresetCapabilitySource.UNKNOWN && regionValidPresets != null
+        get() = source != ModemPresetCapabilitySource.UNKNOWN && advertisedSelectablePresets != null
 
     val selectablePresets: Set<ModemPreset>
-        get() = if (isResolved) {
-            deviceSupportedPresets.intersect(requireNotNull(regionValidPresets))
-        } else {
-            emptySet()
-        }
+        get() = if (isResolved) requireNotNull(advertisedSelectablePresets) else emptySet()
+
+    fun transitionFor(preset: ModemPreset): PresetRegionTransition? {
+        return regionTransitionByPreset[preset]
+    }
 
     fun supportFor(preset: ModemPreset): ModemPresetSupport = when {
         !isResolved -> ModemPresetSupport.UNKNOWN
@@ -74,13 +129,23 @@ data class ModemPresetCapabilities(
     }
 
     companion object {
-        fun unknown(currentPreset: ModemPreset? = null, currentRegion: RegionCode? = null) =
+        fun unknown(
+            currentPreset: ModemPreset? = null,
+            currentRegion: RegionCode? = null,
+            currentMode: CurrentLoRaMode? = currentPreset?.let { preset ->
+                currentRegion?.let { region -> CurrentLoRaMode.Preset(region, preset) }
+            },
+        ) =
             ModemPresetCapabilities(
                 source = ModemPresetCapabilitySource.UNKNOWN,
                 currentPreset = currentPreset,
                 currentRegion = currentRegion,
                 deviceSupportedPresets = emptySet(),
                 regionValidPresets = null,
+                currentMode = currentMode,
+                currentRegionNativePresets = null,
+                advertisedSelectablePresets = null,
+                regionTransitionByPreset = emptyMap(),
             )
     }
 }
@@ -122,24 +187,31 @@ class ModemPresetCapabilityAuthority @Inject constructor() {
         connected: Boolean,
         metadata: DeviceMetadata?,
         loraConfig: LoRaConfig?,
+        regionPresetMap: LoRaRegionPresetMap? = null,
     ): ModemPresetCapabilities {
         val currentPreset = loraConfig?.takeIf { it.usePreset }?.modemPreset
         val currentRegion = loraConfig?.region
+        val currentMode = loraConfig?.toCurrentLoRaMode()
         val exactFirmware = metadata?.firmwareVersion == DARKMESH_2_7_26_FIRMWARE_VERSION
-        if (!connected || loraConfig == null || !exactFirmware) {
-            return ModemPresetCapabilities.unknown(currentPreset, currentRegion)
+        return when {
+            !connected || loraConfig == null ->
+                ModemPresetCapabilities.unknown(currentPreset, currentRegion, currentMode)
+            regionPresetMap != null -> WireModemPresetCapabilityResolver.resolve(loraConfig, regionPresetMap)
+                ?: ModemPresetCapabilities.unknown(currentPreset, currentRegion, currentMode)
+            !exactFirmware -> ModemPresetCapabilities.unknown(currentPreset, currentRegion, currentMode)
+            else -> {
+                val deviceSupported = DARKMESH_2_7_26_DEVICE_PRESETS
+                val regionValid = regionValidPresets(loraConfig.region)
+                ModemPresetCapabilities(
+                    source = ModemPresetCapabilitySource.DARKMESH_2_7_26_EXACT_SOURCE,
+                    currentPreset = currentPreset,
+                    currentRegion = currentRegion,
+                    deviceSupportedPresets = deviceSupported,
+                    regionValidPresets = regionValid,
+                    currentMode = currentMode,
+                )
+            }
         }
-
-        val deviceSupported = DARKMESH_2_7_26_DEVICE_PRESETS
-        val regionValid = regionValidPresets(loraConfig.region)
-
-        return ModemPresetCapabilities(
-            source = ModemPresetCapabilitySource.DARKMESH_2_7_26_EXACT_SOURCE,
-            currentPreset = currentPreset,
-            currentRegion = currentRegion,
-            deviceSupportedPresets = deviceSupported,
-            regionValidPresets = regionValid,
-        )
     }
 
     private fun regionValidPresets(region: RegionCode): Set<ModemPreset>? {
