@@ -578,6 +578,7 @@ class MeshService : Service(), Logging {
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         uiPrefs.unregisterOnSharedPreferenceChangeListener(batteryAlertPrefsListener)
         clearLowBatteryAlertState()
+        radioConfigRepository.invalidateRegionPresetCapabilities()
 
         super.onDestroy()
         serviceJob.cancel()
@@ -2175,7 +2176,10 @@ class MeshService : Service(), Logging {
         when (c) {
             ConnectionState.CONNECTED -> startConnect()
             ConnectionState.DEVICE_SLEEP -> startDeviceSleep()
-            ConnectionState.DISCONNECTED -> startDisconnect()
+            ConnectionState.DISCONNECTED -> {
+                radioConfigRepository.invalidateRegionPresetCapabilities()
+                startDisconnect()
+            }
         }
 
         // Update the android notification in the status bar
@@ -2259,10 +2263,19 @@ class MeshService : Service(), Logging {
                 MeshProtos.FromRadio.CLIENTNOTIFICATION_FIELD_NUMBER -> {
                     handleClientNotification(proto.clientNotification)
                 }
-                else -> errormsg("Unexpected FromRadio variant")
+                else -> handleOtherFromRadioVariant(proto)
             }
         } catch (ex: InvalidProtocolBufferException) {
             errormsg("Invalid Protobuf from radio, len=${bytes.size}", ex)
+        }
+    }
+
+    private fun handleOtherFromRadioVariant(proto: MeshProtos.FromRadio) {
+        when (proto.payloadVariantCase.number) {
+            MeshProtos.FromRadio.REGION_PRESETS_FIELD_NUMBER -> {
+                radioConfigRepository.stageRegionPresetMap(proto.regionPresets)
+            }
+            else -> errormsg("Unexpected FromRadio variant")
         }
     }
 
@@ -2569,6 +2582,11 @@ class MeshService : Service(), Logging {
             // This was our config request
             val localMyNodeInfo = newMyNodeInfo
             if (localMyNodeInfo == null || newNodes.isEmpty()) {
+                radioConfigRepository.completeRegionPresetConfig(
+                    nonce = configCompleteId,
+                    radioId = radioInterfaceService.getBondedDeviceAddress(),
+                    successful = false,
+                )
                 errormsg("Did not receive a valid config")
             } else {
                 val authoritativeNodes = newNodes.toList()
@@ -2610,6 +2628,11 @@ class MeshService : Service(), Logging {
                         security = localConfig.security.copy { isManaged = true }
                     })
                 }
+                radioConfigRepository.completeRegionPresetConfig(
+                    nonce = configCompleteId,
+                    radioId = radioInterfaceService.getBondedDeviceAddress(),
+                    successful = true,
+                )
                 onHasSettings()
             }
         } else {
@@ -2624,6 +2647,10 @@ class MeshService : Service(), Logging {
         configNonce += 1
         newNodes.clear()
         newMyNodeInfo = null
+        radioConfigRepository.beginRegionPresetConfig(
+            nonce = configNonce,
+            radioId = radioInterfaceService.getBondedDeviceAddress(),
+        )
 
         debug("Starting config nonce=$configNonce")
 
@@ -2821,6 +2848,7 @@ class MeshService : Service(), Logging {
         override fun setDeviceAddress(deviceAddr: String?) = toRemoteExceptions {
             debug("Passing through device change to radio service: ${deviceAddr.anonymize}")
 
+            radioConfigRepository.invalidateRegionPresetCapabilities()
             val res = radioInterfaceService.setDeviceAddress(deviceAddr)
             if (res) {
                 discardLocalDeviceState()

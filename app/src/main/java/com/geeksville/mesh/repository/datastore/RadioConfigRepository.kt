@@ -48,6 +48,7 @@ import org.meshtastic.proto.ConfigProtos.Config
 import org.meshtastic.proto.LocalOnlyProtos.LocalConfig
 import org.meshtastic.proto.LocalOnlyProtos.LocalModuleConfig
 import org.meshtastic.proto.MeshProtos.DeviceMetadata
+import org.meshtastic.proto.MeshProtos.LoRaRegionPresetMap
 import org.meshtastic.proto.MeshProtos.MeshPacket
 import org.meshtastic.proto.ModuleConfigProtos.ModuleConfig
 import org.meshtastic.proto.deviceProfile
@@ -67,6 +68,8 @@ class RadioConfigRepository @Inject constructor(
     private val moduleConfigRepository: ModuleConfigRepository,
     private val modemPresetCapabilityAuthority: ModemPresetCapabilityAuthority,
 ) {
+    private val regionPresetCapabilitySession = RegionPresetCapabilitySession()
+
     val meshService: IMeshService? get() = serviceRepository.meshService
 
     // Connection state to our radio device
@@ -148,13 +151,31 @@ class RadioConfigRepository @Inject constructor(
         nodeDB.myNodeInfo,
         nodeDB.nodeDBbyNum,
         localConfigFlow,
-    ) { state, myNodeInfo, nodes, localConfig ->
+        regionPresetCapabilitySession.activeRegionPresetMap,
+    ) { state, myNodeInfo, nodes, localConfig, regionPresetMap ->
         val metadata = myNodeInfo?.myNodeNum?.let(nodes::get)?.metadata
         modemPresetCapabilityAuthority.resolve(
             connected = state == ConnectionState.CONNECTED,
             metadata = metadata,
             loraConfig = localConfig.takeIf { it.hasLora() }?.lora,
+            regionPresetMap = regionPresetMap,
         )
+    }
+
+    fun beginRegionPresetConfig(nonce: Int, radioId: String?) {
+        regionPresetCapabilitySession.beginConfig(nonce, radioId)
+    }
+
+    fun stageRegionPresetMap(regionPresetMap: LoRaRegionPresetMap) {
+        regionPresetCapabilitySession.stage(regionPresetMap)
+    }
+
+    fun completeRegionPresetConfig(nonce: Int, radioId: String?, successful: Boolean) {
+        regionPresetCapabilitySession.complete(nonce, radioId, successful)
+    }
+
+    fun invalidateRegionPresetCapabilities() {
+        regionPresetCapabilitySession.invalidate()
     }
 
     /**
