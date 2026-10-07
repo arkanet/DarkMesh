@@ -67,14 +67,86 @@ internal data class CanonicalIdentityMigrationResult(
     val preflightFailure: CanonicalIdentityMigrationPreflightFailure? = null,
 )
 
-/**
- * Test/direct-repository entry point for the Room phase of a trusted canonical identity migration.
- * No production runtime path invokes this repository in C0B2.
- */
+internal enum class CanonicalIdentityJournalValidationFailure {
+    UNKNOWN_STATE,
+    UNUSABLE_PUBLIC_KEY,
+    INVALID_NODE_NUMS,
+    NON_CANONICAL_TARGET,
+    SOURCE_REMAINS,
+    TARGET_NOT_EXACT,
+    DUPLICATE_KEY_OWNER,
+}
+
+internal data class CanonicalIdentityJournalValidation(
+    val journal: CanonicalIdentityMigrationJournal,
+    val isConsistent: Boolean,
+    val failure: CanonicalIdentityJournalValidationFailure? = null,
+)
+
+internal enum class CanonicalIdentityJournalCompletion {
+    COMPLETED,
+    ALREADY_COMPLETE,
+    INCONSISTENT,
+}
+
+/** Room phase and journal validation for a trusted canonical identity migration. */
 class CanonicalIdentityMigrationRepository @Inject constructor(
     private val database: MeshtasticDatabase,
     private val dispatchers: CoroutineDispatchers,
 ) {
+    internal suspend fun getNodeRegistrySnapshot(): List<NodeRegistry> = withContext(dispatchers.io) {
+        database.canonicalIdentityMigrationDao().getNodeRegistrySnapshot()
+    }
+
+    internal suspend fun getCanonicalIdentityMigrationJournals(): List<CanonicalIdentityMigrationJournal> =
+        withContext(dispatchers.io) {
+            database.canonicalIdentityMigrationDao().getJournals()
+        }
+
+    internal suspend fun getCanonicalIdentityMigrationJournal(
+        oldNodeNum: Int,
+        newNodeNum: Int,
+    ): CanonicalIdentityMigrationJournal? = withContext(dispatchers.io) {
+        database.canonicalIdentityMigrationDao().getJournal(oldNodeNum, newNodeNum)
+    }
+
+    internal suspend fun validateCanonicalIdentityJournal(
+        journal: CanonicalIdentityMigrationJournal,
+    ): CanonicalIdentityJournalValidation = withContext(dispatchers.io) {
+        database.withTransaction {
+            validateJournal(database.canonicalIdentityMigrationDao(), journal)
+        }
+    }
+
+    internal suspend fun completeCanonicalIdentityJournal(
+        journal: CanonicalIdentityMigrationJournal,
+    ): CanonicalIdentityJournalCompletion = withContext(dispatchers.io) {
+        database.withTransaction {
+            val dao = database.canonicalIdentityMigrationDao()
+            val current = dao.getJournal(journal.oldNodeNum, journal.newNodeNum)
+                ?: return@withTransaction CanonicalIdentityJournalCompletion.INCONSISTENT
+            val validation = validateJournal(dao, current)
+            if (!validation.isConsistent) {
+                return@withTransaction CanonicalIdentityJournalCompletion.INCONSISTENT
+            }
+            if (current.state == CanonicalIdentityMigrationJournalStates.COMPLETE) {
+                return@withTransaction CanonicalIdentityJournalCompletion.ALREADY_COMPLETE
+            }
+            val updated = dao.completePendingJournal(
+                oldNodeNum = current.oldNodeNum,
+                newNodeNum = current.newNodeNum,
+                pendingState = CanonicalIdentityMigrationJournalStates.ROOM_COMMITTED_EXTERNAL_PENDING,
+                completeState = CanonicalIdentityMigrationJournalStates.COMPLETE,
+                updatedAt = System.currentTimeMillis(),
+            )
+            if (updated == 1) {
+                CanonicalIdentityJournalCompletion.COMPLETED
+            } else {
+                CanonicalIdentityJournalCompletion.INCONSISTENT
+            }
+        }
+    }
+
     internal suspend fun executeCanonicalIdentityMigration(
         request: CanonicalIdentityMigrationRequest,
     ): CanonicalIdentityMigrationResult = withContext(dispatchers.io) {
@@ -148,6 +220,34 @@ class CanonicalIdentityMigrationRepository @Inject constructor(
         return CanonicalIdentityMigrationResult(
             outcome = CanonicalIdentityMigrationOutcome.ROOM_COMMITTED_EXTERNAL_PENDING,
             decision = decision,
+        )
+    }
+
+    private suspend fun validateJournal(
+        dao: CanonicalIdentityMigrationDao,
+        journal: CanonicalIdentityMigrationJournal,
+    ): CanonicalIdentityJournalValidation {
+        val failure = when {
+            journal.state != CanonicalIdentityMigrationJournalStates.ROOM_COMMITTED_EXTERNAL_PENDING &&
+                journal.state != CanonicalIdentityMigrationJournalStates.COMPLETE ->
+                CanonicalIdentityJournalValidationFailure.UNKNOWN_STATE
+
+            !MeshtasticCanonicalIdentity.isUsablePublicKey(journal.publicKey) ->
+                CanonicalIdentityJournalValidationFailure.UNUSABLE_PUBLIC_KEY
+
+            journal.oldNodeNum == journal.newNodeNum ||
+                !MeshtasticCanonicalIdentity.isUsableOperationalNodeNum(journal.newNodeNum) ->
+                CanonicalIdentityJournalValidationFailure.INVALID_NODE_NUMS
+
+            MeshtasticCanonicalIdentity.canonicalNodeNum(journal.publicKey) != journal.newNodeNum ->
+                CanonicalIdentityJournalValidationFailure.NON_CANONICAL_TARGET
+
+            else -> validateCommittedRegistryState(dao.getNodeRegistrySnapshot(), journal)
+        }
+        return CanonicalIdentityJournalValidation(
+            journal = journal,
+            isConsistent = failure == null,
+            failure = failure,
         )
     }
 
@@ -268,6 +368,35 @@ class CanonicalIdentityMigrationRepository @Inject constructor(
             dao.upsertMetadata(newest.copy(num = newNodeNum))
             dao.deleteMetadata(oldNodeNum)
         }
+    }
+}
+
+private fun validateCommittedRegistryState(
+    registry: List<NodeRegistry>,
+    journal: CanonicalIdentityMigrationJournal,
+): CanonicalIdentityJournalValidationFailure? {
+    val oldNodeId = DataPacket.nodeNumToDefaultId(journal.oldNodeNum)
+    val newNodeId = DataPacket.nodeNumToDefaultId(journal.newNodeNum)
+    val sourceRows = registry.filter { it.nodeNum == journal.oldNodeNum || it.nodeId == oldNodeId }
+    if (sourceRows.isNotEmpty()) return CanonicalIdentityJournalValidationFailure.SOURCE_REMAINS
+
+    val targetRows = registry.filter { it.nodeNum == journal.newNodeNum || it.nodeId == newNodeId }
+    val target = targetRows.singleOrNull()
+        ?: return CanonicalIdentityJournalValidationFailure.TARGET_NOT_EXACT
+    if (target.nodeId != newNodeId ||
+        target.nodeNum != journal.newNodeNum ||
+        target.publicKey?.contentEquals(journal.publicKey) != true
+    ) {
+        return CanonicalIdentityJournalValidationFailure.TARGET_NOT_EXACT
+    }
+
+    val duplicateOwner = registry.any { row ->
+        row.nodeId != target.nodeId && row.publicKey?.contentEquals(journal.publicKey) == true
+    }
+    return if (duplicateOwner) {
+        CanonicalIdentityJournalValidationFailure.DUPLICATE_KEY_OWNER
+    } else {
+        null
     }
 }
 

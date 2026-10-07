@@ -83,6 +83,14 @@ interface CanonicalIdentityMigrationDao {
     )
     suspend fun getJournal(oldNodeNum: Int, newNodeNum: Int): CanonicalIdentityMigrationJournal?
 
+    @Query(
+        """
+        SELECT * FROM canonical_identity_migration
+        ORDER BY old_node_num, new_node_num
+        """,
+    )
+    suspend fun getJournals(): List<CanonicalIdentityMigrationJournal>
+
     @Upsert
     suspend fun upsertJournal(journal: CanonicalIdentityMigrationJournal)
 
@@ -97,6 +105,23 @@ interface CanonicalIdentityMigrationDao {
         oldNodeNum: Int,
         newNodeNum: Int,
         state: String,
+        updatedAt: Long,
+    ): Int
+
+    @Query(
+        """
+        UPDATE canonical_identity_migration
+        SET state = :completeState, updated_at = :updatedAt
+        WHERE old_node_num = :oldNodeNum
+          AND new_node_num = :newNodeNum
+          AND state = :pendingState
+        """,
+    )
+    suspend fun completePendingJournal(
+        oldNodeNum: Int,
+        newNodeNum: Int,
+        pendingState: String,
+        completeState: String,
         updatedAt: Long,
     ): Int
 }

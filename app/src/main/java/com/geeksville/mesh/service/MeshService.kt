@@ -49,6 +49,7 @@ import com.geeksville.mesh.android.hasLocationPermission
 import com.geeksville.mesh.android.hasNotificationPermission
 import com.geeksville.mesh.android.mainLooperToast
 import com.geeksville.mesh.concurrent.handledLaunch
+import com.geeksville.mesh.database.CanonicalIdentityRuntimeMigration
 import com.geeksville.mesh.database.DbImportState
 import com.geeksville.mesh.database.DbImportState.dbImportContactMap
 import com.geeksville.mesh.database.MeshLogRepository
@@ -108,6 +109,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -189,6 +191,9 @@ class MeshService : Service(), Logging {
 
     @Inject
     lateinit var nodeRegistryRepository: NodeRegistryRepository
+
+    @Inject
+    lateinit var canonicalIdentityRuntimeMigration: CanonicalIdentityRuntimeMigration
 
     private lateinit var huntingPrefs: SharedPreferences
 
@@ -417,22 +422,36 @@ class MeshService : Service(), Logging {
     before we are fully bound to the RadioInterfaceService
      */
     private fun sendToRadio(p: ToRadio.Builder) {
-        val built = p.build()
+        val built = p.build().let { toRadio ->
+            if (!toRadio.hasPacket()) {
+                toRadio
+            } else {
+                val packet = toRadio.packet
+                val safeDestination = canonicalizeOutboundNodeNum(packet.to)
+                if (safeDestination == packet.to) {
+                    toRadio
+                } else {
+                    toRadio.toBuilder()
+                        .setPacket(packet.toBuilder().setTo(safeDestination))
+                        .build()
+                }
+            }
+        }
         debug("Sending to radio ${built.toPIIString()}")
         val b = built.toByteArray()
 
         radioInterfaceService.sendToRadio(b)
-        changeStatus(p.packet.id, MessageStatus.ENROUTE)
+        changeStatus(built.packet.id, MessageStatus.ENROUTE)
 
-        if (p.packet.hasDecoded()) {
+        if (built.packet.hasDecoded()) {
             val packetToSave = MeshLog(
                 uuid = UUID.randomUUID().toString(),
                 message_type = "Packet",
                 received_date = System.currentTimeMillis(),
-                raw_message = p.packet.toString(),
-                fromNum = p.packet.from,
-                portNum = p.packet.decoded.portnumValue,
-                fromRadio = fromRadio { packet = p.packet },
+                raw_message = built.packet.toString(),
+                fromNum = built.packet.from,
+                portNum = built.packet.decoded.portnumValue,
+                fromRadio = fromRadio { packet = built.packet },
             )
             insertMeshLog(packetToSave)
         }
@@ -472,10 +491,6 @@ class MeshService : Service(), Logging {
         huntingPrefs = getSharedPreferences(UserPrefs.Hunting.SHARED_HUNT_PREFS, MODE_PRIVATE)
         uiPrefs.registerOnSharedPreferenceChangeListener(batteryAlertPrefsListener)
 
-        // Switch to the IO thread
-        serviceScope.handledLaunch {
-            radioInterfaceService.connect()
-        }
         radioInterfaceService.connectionState.onEach(::onRadioConnectionState)
             .launchIn(serviceScope)
         radioInterfaceService.receivedData.onEach(::onReceiveFromRadio)
@@ -493,7 +508,14 @@ class MeshService : Service(), Logging {
             .catch { errormsg("Node registry cache failed", it) }
             .launchIn(serviceScope)
 
-        loadSettings() // Load our last known node DB
+        // No radio packet may be emitted before persistent identity recovery has established
+        // exact per-identity outbound rules for every existing journal.
+        serviceScope.handledLaunch {
+            canonicalIdentityRuntimeMigration.recoverPersistedMigrations()
+            updateNodeRegistryCache(nodeRegistryRepository.getAllNodes().first())
+            loadSettings() // Load our last known node DB only after recovery.
+            radioInterfaceService.connect()
+        }
 
         // the rest of our init will happen once we are in radioConnection.onServiceConnected
     }
@@ -565,7 +587,7 @@ class MeshService : Service(), Logging {
     // BEGINNING OF MODEL - FIXME, move elsewhere
     //
 
-    private fun loadSettings() = serviceScope.handledLaunch {
+    private suspend fun loadSettings() {
         discardNodeDB() // Get rid of any old state
         myNodeInfo = radioConfigRepository.myNodeInfo.value
         nodeDBbyNodeNum.putAll(radioConfigRepository.getNodeDBbyNum())
@@ -872,7 +894,15 @@ class MeshService : Service(), Logging {
     private fun toNodeNum(id: String): Int = when (id) {
         DataPacket.ID_BROADCAST -> DataPacket.NODENUM_BROADCAST
         DataPacket.ID_LOCAL -> myNodeNum
-        else -> toNodeInfo(id).num
+        else -> canonicalizeOutboundNodeNum(
+            exactDefaultNodeNum(id) ?: toNodeInfo(id).num,
+        )
+    }
+
+    private fun exactDefaultNodeNum(id: String): Int? {
+        val match = hexIdRegex.matchEntire(id) ?: return null
+        val nodeNum = match.groups[1]?.value?.toLongOrNull(16)?.toInt() ?: return null
+        return nodeNum.takeIf { DataPacket.nodeNumToDefaultId(it).equals(id, ignoreCase = true) }
     }
 
     // A helper function that makes it easy to update node info objects
@@ -929,7 +959,7 @@ class MeshService : Service(), Logging {
 
         from = 0 // don't add myNodeNum
 
-        to = idNum
+        to = canonicalizeOutboundNodeNum(idNum)
     }
 
     /**
@@ -2197,7 +2227,7 @@ class MeshService : Service(), Logging {
         )
     }
 
-    private fun onReceiveFromRadio(bytes: ByteArray) {
+    private suspend fun onReceiveFromRadio(bytes: ByteArray) {
         try {
 
             val proto = MeshProtos.FromRadio.parseFrom(bytes)
@@ -2524,7 +2554,7 @@ class MeshService : Service(), Logging {
         reportConnection()
     }
 
-    private fun handleConfigComplete(configCompleteId: Int) {
+    private suspend fun handleConfigComplete(configCompleteId: Int) {
         if (configCompleteId == configNonce) {
 
             val packetToSave = MeshLog(
@@ -2541,17 +2571,27 @@ class MeshService : Service(), Logging {
             if (localMyNodeInfo == null || newNodes.isEmpty()) {
                 errormsg("Did not receive a valid config")
             } else {
+                val authoritativeNodes = newNodes.toList()
                 val previousNodes = nodeDBbyNodeNum.toMap()
+
+                // This is the only production TRUSTED_CONFIG activation point. The matching
+                // config nonce proves these NodeInfos belong to the requested connected-radio
+                // configuration download; ordinary mesh User packets never reach this call.
+                canonicalIdentityRuntimeMigration.installTrustedConfigIdentities(
+                    nodeInfos = authoritativeNodes,
+                    localNodeNum = localMyNodeInfo.myNodeNum,
+                )
+
                 discardNodeDB()
                 debug("Installing new node DB")
                 myNodeInfo = localMyNodeInfo
 
-                newNodes.forEach { installNodeInfo(it, previousNodes[it.num]) }
+                authoritativeNodes.forEach { installNodeInfo(it, previousNodes[it.num]) }
                 newNodes.clear() // Just to save RAM ;-)
 
-                serviceScope.handledLaunch {
-                    radioConfigRepository.installNodeDB(localMyNodeInfo, nodeDBbyNodeNum.values.toList())
-                }
+                // C0A remains the sole owner of packet.myNodeNum and runs after the independent
+                // remote C0B Room/external orchestration above.
+                radioConfigRepository.installNodeDB(localMyNodeInfo, nodeDBbyNodeNum.values.toList())
 
                 haveNodeDB = true // we now have nodes from real hardware
 
@@ -3144,5 +3184,12 @@ class MeshService : Service(), Logging {
 
     fun getMyNodeInfo() : MyNodeEntity? {
         return myNodeInfo
+    }
+
+    /** Java-facing resolver for non-Room scheduled work that may retain a stale NodeNum. */
+    fun canonicalizeOutboundNodeNum(nodeNum: Int): Int = if (myNodeInfo?.myNodeNum == nodeNum) {
+        nodeNum
+    } else {
+        canonicalIdentityRuntimeMigration.canonicalizeOutboundNodeNum(nodeNum)
     }
 }

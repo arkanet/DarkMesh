@@ -206,4 +206,57 @@ class PkiUtilsTest {
         assertEquals(2, adminChannel)
         assertNull(PkiUtils.effectivePublicKey(targetNode))
     }
+
+    @Test
+    fun liveSameKeyCanonicalClaimRemainsDuplicateAndCannotMoveOwner() {
+        val key = publicKey(20)
+        val result = PkiUtils.mergeUserPublicKey(
+            existingUser = null,
+            incomingUser = meshUser(22, key),
+            duplicateNodeNum = 11,
+        )
+
+        assertEquals(PublicKeyMergeState.DUPLICATE, result.state)
+        assertEquals(11, result.duplicateNodeNum)
+        assertTrue(PkiUtils.isMismatchPublicKey(result.user.publicKey))
+    }
+
+    @Test
+    fun liveDifferentKeyCannotOverwriteExistingOwner() {
+        val existingKey = publicKey(21)
+        val result = PkiUtils.mergeUserPublicKey(
+            existingUser = meshUser(22, existingKey),
+            incomingUser = meshUser(22, publicKey(22)),
+        )
+
+        assertEquals(PublicKeyMergeState.MISMATCH, result.state)
+        assertTrue(PkiUtils.isMismatchPublicKey(result.user.publicKey))
+    }
+
+    @Test
+    fun liveClaimCannotOverwriteTargetThatAlreadyOwnsAnotherKey() {
+        val targetKey = publicKey(23)
+        val claimedKey = publicKey(24)
+        val result = PkiUtils.mergeUserPublicKey(
+            existingUser = meshUser(22, targetKey),
+            incomingUser = meshUser(22, claimedKey),
+            duplicateNodeNum = 11,
+        )
+
+        assertEquals(PublicKeyMergeState.DUPLICATE, result.state)
+        assertTrue(PkiUtils.isMismatchPublicKey(result.user.publicKey))
+        assertFalse(PkiUtils.publicKeysEqual(result.user.publicKey, claimedKey))
+    }
+
+    @Test
+    fun liveClaimWithoutUsableKeyPreservesExistingKeyWithoutMigration() {
+        val existingKey = publicKey(25)
+        val result = PkiUtils.mergeUserPublicKey(
+            existingUser = meshUser(22, existingKey),
+            incomingUser = meshUser(22),
+        )
+
+        assertEquals(PublicKeyMergeState.PRESERVED, result.state)
+        assertEquals(existingKey, result.user.publicKey)
+    }
 }

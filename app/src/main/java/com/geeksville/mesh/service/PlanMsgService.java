@@ -131,7 +131,10 @@ public class PlanMsgService extends Service {
                                     readableDestination = contactKey.split("\\^")[2];
                                 } else {
                                     ConcurrentHashMap<Integer, NodeEntity> db = meshService.getNodeDBbyNodeNum();
-                                    NodeEntity entity = db.get(Integer.parseInt(m.nodeId()));
+                                    int safeNodeNum = meshService.canonicalizeOutboundNodeNum(
+                                            Integer.parseInt(m.nodeId())
+                                    );
+                                    NodeEntity entity = db.get(safeNodeNum);
                                     if (entity == null) continue;
                                     contactKey = meshService.buildContactKeyForMessage(entity);
                                     readableDestination = entity.getUser().getLongName();
