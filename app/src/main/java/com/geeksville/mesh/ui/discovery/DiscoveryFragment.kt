@@ -76,8 +76,8 @@ import com.geeksville.mesh.discovery.DiscoveryHomeState
 import com.geeksville.mesh.discovery.LocalMeshDiscoveryViewModel
 import com.geeksville.mesh.model.ChannelOption
 import com.geeksville.mesh.model.ModemPresetCapabilities
-import com.geeksville.mesh.model.ModemPresetSupport
 import com.geeksville.mesh.model.UIViewModel
+import com.geeksville.mesh.model.discoveryPresetCatalogue
 import com.geeksville.mesh.ui.ScreenFragment
 import com.geeksville.mesh.ui.theme.AppTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -406,17 +406,12 @@ private fun PresetGrid(
     enabled: Boolean,
     presetCapabilities: ModemPresetCapabilities,
 ) {
+    val visibleOptions = presetCapabilities.visibleDiscoveryPresetOptions
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        ChannelOption.entries.chunked(PRESET_COLUMNS).forEach { rowOptions ->
+        visibleOptions.chunked(PRESET_COLUMNS).forEach { rowOptions ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowOptions.forEach { option ->
-                    val support = presetCapabilities.supportFor(option.modemPreset)
-                    val optionEnabled = enabled && support == ModemPresetSupport.SUPPORTED
-                    val supportSuffix = when (support) {
-                        ModemPresetSupport.SUPPORTED -> ""
-                        ModemPresetSupport.UNSUPPORTED -> " (Unsupported)"
-                        ModemPresetSupport.UNKNOWN -> " (Unknown)"
-                    }
+                    val optionEnabled = enabled && presetCapabilities.isSelectable(option.modemPreset)
                     Row(
                         modifier = Modifier
                             .weight(1f)
@@ -434,12 +429,8 @@ private fun PresetGrid(
                             enabled = optionEnabled,
                         )
                         Text(
-                            text = option.displayName() + supportSuffix,
-                            color = if (support == ModemPresetSupport.SUPPORTED) {
-                                MaterialTheme.colors.onSurface
-                            } else {
-                                MaterialTheme.colors.onSurface.copy(alpha = DISABLED_PRESET_ALPHA)
-                            },
+                            text = option.displayName(),
+                            color = MaterialTheme.colors.onSurface,
                         )
                     }
                 }
@@ -447,6 +438,11 @@ private fun PresetGrid(
         }
     }
 }
+
+internal val ModemPresetCapabilities.visibleDiscoveryPresetOptions: List<ChannelOption>
+    get() = discoveryPresetCatalogue()
+        .filter { it.selectable }
+        .map { it.option }
 
 @Composable
 private fun DiscoveryHomeState?.discoveryHomeLabel(): String {
@@ -505,4 +501,3 @@ internal fun SectionTitle(text: String) {
 private const val DEFAULT_DWELL_SECONDS = 60L
 private const val PRESET_COLUMNS = 2
 private const val MAX_DWELL_DIGITS = 4
-private const val DISABLED_PRESET_ALPHA = 0.45f
