@@ -103,7 +103,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
 import dagger.Lazy
 import dagger.hilt.android.AndroidEntryPoint
-import java8.util.concurrent.CompletableFuture
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -140,9 +139,6 @@ import org.meshtastic.proto.user
 import java.util.Random
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 import kotlin.math.absoluteValue
 
@@ -259,6 +255,7 @@ class MeshService : Service(), Logging {
         val minDeviceVersion = DeviceVersion("2.3.2")
 
         private const val DEVICE_SLEEP_GRACE_SECONDS = 30
+        private const val PACKET_QUEUE_TIMEOUT_MILLIS = 2 * 60 * 1000L
     }
 
     fun buildContactKeyForMessage(node: NodeEntity): String {
@@ -292,6 +289,7 @@ class MeshService : Service(), Logging {
     private val uiPrefs by lazy { getPreferences(this) }
     private val serviceJob = Job()
     private val serviceScope by lazy { CoroutineScope(dispatchers.io + serviceJob) }
+    private lateinit var outgoingPacketQueue: SerializedPacketQueue<MeshPacket>
     var connectionState = ConnectionState.DISCONNECTED
 
     private var locationFlow: Job? = null
@@ -461,8 +459,7 @@ class MeshService : Service(), Logging {
      * Send a mesh packet to the radio, if the radio is not currently connected this function will throw NotConnectedException
      */
     private fun sendToRadio(packet: MeshPacket) {
-        queuedPackets.add(packet)
-        startPacketQueue()
+        outgoingPacketQueue.enqueueOrThrowNotConnected(packet)
     }
 
     private fun updateMessageNotification(contactKey: String, dataPacket: DataPacket) {
@@ -490,6 +487,31 @@ class MeshService : Service(), Logging {
         info("Creating mesh service")
         huntingPrefs = getSharedPreferences(UserPrefs.Hunting.SHARED_HUNT_PREFS, MODE_PRIVATE)
         uiPrefs.registerOnSharedPreferenceChangeListener(batteryAlertPrefsListener)
+
+        outgoingPacketQueue = SerializedPacketQueue(
+            scope = serviceScope,
+            packetId = MeshPacket::getId,
+            timeoutMillis = PACKET_QUEUE_TIMEOUT_MILLIS,
+            send = { packet ->
+                if (connectionState != ConnectionState.CONNECTED) throw RadioNotConnectedException()
+                sendToRadio(ToRadio.newBuilder().apply { this.packet = packet })
+            },
+            onResult = { packet, result ->
+                when (result) {
+                    TransportResult.QUEUE_ACCEPTED,
+                    TransportResult.RESPONSE_OBSERVED ->
+                        debug("packet queue id=${packet.id.toUInt()} success $result")
+
+                    TransportResult.TIMED_OUT ->
+                        debug("packet queue id=${packet.id.toUInt()} timeout")
+
+                    else -> debug("packet queue id=${packet.id.toUInt()} failed $result")
+                }
+            },
+            onError = { errormsg("packet queue error", it) },
+            onWorkerStarted = { debug("packet queue worker started") },
+            onWorkerStopped = { debug("packet queue worker stopped") },
+        )
 
         radioInterfaceService.connectionState.onEach(::onRadioConnectionState)
             .launchIn(serviceScope)
@@ -579,6 +601,7 @@ class MeshService : Service(), Logging {
         uiPrefs.unregisterOnSharedPreferenceChangeListener(batteryAlertPrefsListener)
         clearLowBatteryAlertState()
         radioConfigRepository.invalidateRegionPresetCapabilities()
+        if (::outgoingPacketQueue.isInitialized) outgoingPacketQueue.shutdown()
 
         super.onDestroy()
         serviceJob.cancel()
@@ -1346,7 +1369,10 @@ class MeshService : Service(), Logging {
                         }
 
                         handleAckNak(packet, data.requestId, fromId, u.errorReasonValue)
-                        queueResponse.remove(data.requestId)?.complete(true)
+                        outgoingPacketQueue.completeExact(
+                            data.requestId,
+                            TransportResult.RESPONSE_OBSERVED,
+                        )
                     }
 
                     Portnums.PortNum.ADMIN_APP_VALUE -> {
@@ -1778,57 +1804,9 @@ class MeshService : Service(), Logging {
         }
     }
 
-    private val queuedPackets = ConcurrentLinkedQueue<MeshPacket>()
-    private val queueResponse = mutableMapOf<Int, CompletableFuture<Boolean>>()
-    private var queueJob: Job? = null
-
-    private fun sendPacket(packet: MeshPacket): CompletableFuture<Boolean> {
-        // send the packet to the radio and return a CompletableFuture that will be completed with the result
-        val future = CompletableFuture<Boolean>()
-        queueResponse[packet.id] = future
-        try {
-            if (connectionState != ConnectionState.CONNECTED) throw RadioNotConnectedException()
-            sendToRadio(ToRadio.newBuilder().apply {
-                this.packet = packet
-            })
-        } catch (ex: Exception) {
-            errormsg("sendToRadio error:", ex)
-            future.complete(false)
-        }
-        return future
-    }
-
-    private fun startPacketQueue() {
-        if (queueJob?.isActive == true) return
-        queueJob = serviceScope.handledLaunch {
-            debug("packet queueJob started")
-            while (connectionState == ConnectionState.CONNECTED) {
-                // take the first packet from the queue head
-                val packet = queuedPackets.poll() ?: break
-                try {
-                    // send packet to the radio and wait for response
-                    val response = sendPacket(packet)
-                    debug("queueJob packet id=${packet.id.toUInt()} waiting")
-                    val success = response.get(2, TimeUnit.MINUTES)
-                    debug("queueJob packet id=${packet.id.toUInt()} success $success")
-                } catch (e: TimeoutException) {
-                    debug("queueJob packet id=${packet.id.toUInt()} timeout")
-                } catch (e: Exception) {
-                    debug("queueJob packet id=${packet.id.toUInt()} failed")
-                }
-            }
-        }
-    }
-
     private fun stopPacketQueue() {
-        if (queueJob?.isActive == true) {
-            info("Stopping packet queueJob")
-            queueJob?.cancel()
-            queueJob = null
-            queuedPackets.clear()
-            queueResponse.entries.lastOrNull { !it.value.isDone }?.value?.complete(false)
-            queueResponse.clear()
-        }
+        info("Stopping packet queue worker")
+        outgoingPacketQueue.pauseAndClear()
     }
 
     private fun sendNow(p: DataPacket) {
@@ -2174,7 +2152,10 @@ class MeshService : Service(), Logging {
 
         connectionState = c
         when (c) {
-            ConnectionState.CONNECTED -> startConnect()
+            ConnectionState.CONNECTED -> {
+                outgoingPacketQueue.resume()
+                startConnect()
+            }
             ConnectionState.DEVICE_SLEEP -> startDeviceSleep()
             ConnectionState.DISCONNECTED -> {
                 radioConfigRepository.invalidateRegionPresetCapabilities()
@@ -2323,11 +2304,17 @@ class MeshService : Service(), Logging {
         val (success, isFull, requestId) = with(queueStatus) {
             Triple(res == 0, free == 0, meshPacketId)
         }
-        if (success && isFull) return // Queue is full, wait for free != 0
-        if (requestId != 0) {
-            queueResponse.remove(requestId)?.complete(success)
-        } else {
-            queueResponse.entries.lastOrNull { !it.value.isDone }?.value?.complete(success)
+        when (outgoingPacketQueue.handleQueueStatus(requestId, success, isFull)) {
+            QueueStatusDisposition.QUEUE_FULL -> Unit // Wait for free != 0.
+            QueueStatusDisposition.EXACT_MATCH -> Unit
+            QueueStatusDisposition.ZERO_ID_SINGLE_MATCH ->
+                debug("queueStatus matched the only live waiter without a packet ID")
+
+            QueueStatusDisposition.AMBIGUOUS_ZERO_ID ->
+                warn("Ignoring zero-ID queueStatus with multiple live waiters")
+
+            QueueStatusDisposition.UNMATCHED ->
+                debug("Ignoring unmatched or late queueStatus for id=${requestId.toUInt()}")
         }
     }
 
@@ -2530,7 +2517,10 @@ class MeshService : Service(), Logging {
         debug("Received clientNotification ${notification.toOneLineString()}")
         radioConfigRepository.setErrorMessage(notification.message)
         // if the future for the originating request is still in the queue, complete as unsuccessful for now
-        queueResponse.remove(notification.replyId)?.complete(false)
+        outgoingPacketQueue.completeExact(
+            notification.replyId,
+            TransportResult.QUEUE_REJECTED,
+        )
     }
 
     /**
@@ -2799,7 +2789,7 @@ class MeshService : Service(), Logging {
     }
 
     fun clearQueue(){
-        queuedPackets.clear()
+        outgoingPacketQueue.clearQueued()
     }
 
     private fun handleFavorite(node: Node) = toRemoteExceptions {
