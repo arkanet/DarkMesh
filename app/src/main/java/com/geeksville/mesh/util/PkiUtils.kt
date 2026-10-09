@@ -1,0 +1,33 @@
+/*
+ * Copyright (c) 2025 Meshtastic LLC
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+package com.geeksville.mesh.util
+
+import com.google.protobuf.ByteString
+
+/** Pure public-key validation shared by subsequent PKI identity and routing changes. */
+object PkiUtils {
+    const val PUBLIC_KEY_SIZE_BYTES = 32
+
+    /** A reserved all-zero key represents a detected identity mismatch. */
+    val MISMATCH_PUBLIC_KEY: ByteString = ByteString.copyFrom(ByteArray(PUBLIC_KEY_SIZE_BYTES))
+
+    fun isMismatchPublicKey(publicKey: ByteString?): Boolean =
+        publicKey != null &&
+            publicKey.size() == PUBLIC_KEY_SIZE_BYTES &&
+            (0 until publicKey.size()).all { publicKey.byteAt(it).toInt() == 0 }
+
+    fun hasUsablePublicKey(publicKey: ByteString?): Boolean =
+        publicKey != null &&
+            publicKey.size() == PUBLIC_KEY_SIZE_BYTES &&
+            !isMismatchPublicKey(publicKey)
+
+    fun publicKeysEqual(left: ByteString?, right: ByteString?): Boolean =
+        left != null && right != null && left == right
+
+    fun publicKeyBytes(publicKey: ByteString?): ByteArray? =
+        publicKey?.takeIf(::hasUsablePublicKey)?.toByteArray()
+}
