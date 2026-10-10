@@ -10,7 +10,9 @@ on:
       - ".gitmodules"
 
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
+      - 'fix/ci-packetdao-test-constructor'
 
 concurrency:
   group: build-${{ github.ref }}
