@@ -66,6 +66,7 @@ import com.geeksville.mesh.database.entity.ReactionEntity
         AutoMigration(from = 13, to = 14),
         AutoMigration(from = 14, to = 15),
         AutoMigration(from = 15, to = 16),
+        AutoMigration(from = 16, to = 17),
     ],
     version = 24,
     exportSchema = true,
