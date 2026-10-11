@@ -20,6 +20,8 @@ package com.geeksville.mesh.ui.components.config
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.material.Button
+import androidx.compose.material.Text
 import androidx.compose.material.Divider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +34,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.geeksville.mesh.model.RadioConfigViewModel
+import com.geeksville.mesh.util.Crypto
 import com.geeksville.mesh.ui.components.EditBase64Preference
 import com.geeksville.mesh.ui.components.EditListPreference
 import com.geeksville.mesh.ui.components.PreferenceCategory
@@ -72,7 +75,7 @@ fun SecurityConfigItemList(
     onConfirm: (config: SecurityConfig) -> Unit,
 ) {
     val focusManager = LocalFocusManager.current
-    var securityInput by rememberSaveable { mutableStateOf(securityConfig) }
+    var securityInput by rememberSaveable(securityConfig) { mutableStateOf(securityConfig) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize()
@@ -105,6 +108,20 @@ fun SecurityConfigItemList(
                     }
                 },
             )
+        }
+
+        item {
+            Button(
+                enabled = enabled,
+                onClick = {
+                    focusManager.clearFocus()
+                    val keys = Crypto.generatePkiKeyPair()
+                    securityInput = securityInput.copy {
+                        publicKey = keys.publicKey
+                        privateKey = keys.privateKey
+                    }
+                },
+            ) { Text("Regenerate keys") }
         }
 
         item {
