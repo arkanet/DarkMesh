@@ -73,6 +73,8 @@ import com.geeksville.mesh.database.entity.ReactionEntity
         AutoMigration(from = 19, to = 20),
         AutoMigration(from = 20, to = 21),
         AutoMigration(from = 21, to = 22, spec = AutoMigration21to22::class),
+        AutoMigration(from = 22, to = 23),
+        AutoMigration(from = 23, to = 24),
     ],
     version = 24,
     exportSchema = true,
