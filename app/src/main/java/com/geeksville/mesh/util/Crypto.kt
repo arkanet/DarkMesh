@@ -6,6 +6,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 
 object Crypto {
+    private const val X25519_KEY_BYTES = 32
 
     data class PkiKeyPair(
         val publicKey: ByteString,
@@ -22,8 +23,8 @@ object Crypto {
         val privateKey = X25519PrivateKeyParameters(SecureRandom())
         val publicKey = privateKey.generatePublicKey()
 
-        val publicKeyBytes = ByteArray(32)
-        val privateKeyBytes = ByteArray(32)
+        val publicKeyBytes = ByteArray(X25519_KEY_BYTES)
+        val privateKeyBytes = ByteArray(X25519_KEY_BYTES)
         publicKey.encode(publicKeyBytes, 0)
         privateKey.encode(privateKeyBytes, 0)
 
