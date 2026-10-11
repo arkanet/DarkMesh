@@ -50,7 +50,8 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: fdroidDebug
-        path: app/build/outputs/apk/fdroid/debug/app-fdroid-debug.apk
+        path: app/build/outputs/apk/**/*-debug.apk
+        if-no-files-found: error
         retention-days: 30
 
     - name: Check lint
