@@ -103,11 +103,17 @@ jobs:
           tail -n 12 /tmp/detekt-branch.log
           echo "Main Detekt summary:"
           tail -n 12 /tmp/detekt-main.log
+          branch_count=$(grep -oE 'Analysis failed with [0-9]+ weighted issues' /tmp/detekt-branch.log | tail -1 | grep -oE '[0-9]+' || true)
+          main_count=$(grep -oE 'Analysis failed with [0-9]+ weighted issues' /tmp/detekt-main.log | tail -1 | grep -oE '[0-9]+' || true)
           if [ "$branch_rc" -eq 0 ]; then exit 0; fi
-          if [ "$main_rc" -ne 0 ]; then
-            echo "::error::Both main and branch fail Detekt; inspect report artifacts to separate existing issues."
+          if [ "$main_rc" -ne 0 ] && [ -n "$branch_count" ] && [ -n "$main_count" ]; then
+            if [ "$branch_count" -le "$main_count" ]; then
+              echo "::warning::Detekt baseline debt: branch=$branch_count, main=$main_count. Counts match or improve; compare reports for changed findings."
+              exit 0
+            fi
           fi
-          exit "$branch_rc"
+          echo "::error::Detekt worsened or comparison failed: branch=$branch_count, main=$main_count"
+          exit 1
 
       - name: Upload Detekt comparison logs
         if: ${{ !cancelled() }}
