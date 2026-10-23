@@ -126,6 +126,8 @@ class DebugFragment : Fragment() {
     }
 }
 
+private const val LOG_AUTOSCROLL_THRESHOLD = 3
+
 private val REGEX_ANNOTATED_NODE_ID = Regex("\\(![0-9a-fA-F]{8}\\)$", RegexOption.MULTILINE)
 
 /**
@@ -198,13 +200,17 @@ internal fun DebugScreen(
     val context = LocalContext.current
     val visibleLogs = remember(logs, filter) {
         val query = filter.trim()
-        if (query.isEmpty()) logs else logs.filter { log ->
+        if (query.isEmpty()) {
+            logs
+        } else {
+            logs.filter { log ->
             log.message_type.contains(query, ignoreCase = true) ||
                 log.raw_message.contains(query, ignoreCase = true) ||
                 log.fromNum.toUInt().toString(16).contains(query.removePrefix("!"), ignoreCase = true)
+            }
         }
     }
-    val shouldAutoScroll by remember { derivedStateOf { listState.firstVisibleItemIndex < 3 } }
+    val shouldAutoScroll by remember { derivedStateOf { listState.firstVisibleItemIndex < LOG_AUTOSCROLL_THRESHOLD } }
     if (shouldAutoScroll) {
         LaunchedEffect(visibleLogs) {
             if (visibleLogs.isNotEmpty() && !listState.isScrollInProgress) {
@@ -231,14 +237,7 @@ internal fun DebugScreen(
                 onClick = {
                     // Share only the currently displayed, bounded log snapshot.
                     // This may contain sensitive node identifiers and message content.
-                    val export = buildString {
-                        appendLine("DarkMesh diagnostic log — filtered snapshot")
-                        appendLine("Entries: ${visibleLogs.size} (latest ${logs.size} retained in view)")
-                        visibleLogs.forEach { log ->
-                            appendLine("--- ${DateFormat.getDateTimeInstance().format(log.received_date)} | ${log.message_type} ---")
-                            appendLine(log.raw_message)
-                        }
-                    }
+                    val export = formatDiagnosticLog(visibleLogs)
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_SUBJECT, "DarkMesh diagnostic log")
@@ -258,6 +257,16 @@ internal fun DebugScreen(
                 items(visibleLogs, key = { it.uuid }) { log -> DebugItem(annotateMeshLog(log)) }
             }
         }
+    }
+}
+
+private fun formatDiagnosticLog(logs: List<MeshLog>): String = buildString {
+    appendLine("DarkMesh diagnostic log — filtered snapshot")
+    appendLine("Entries: ${logs.size} (recent log window)")
+    val dateFormat = DateFormat.getDateTimeInstance()
+    logs.forEach { log ->
+        appendLine("--- ${dateFormat.format(log.received_date)} | ${log.message_type} ---")
+        appendLine(log.raw_message)
     }
 }
 
