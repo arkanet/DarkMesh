@@ -83,6 +83,7 @@ jobs:
       - name: Compare Detekt against main baseline
         shell: bash
         run: |
+          set +e
           set -uo pipefail
           ./gradlew detekt --console=plain > /tmp/detekt-branch.log 2>&1
           branch_rc=$?
@@ -98,6 +99,10 @@ jobs:
           echo "Main detekt exit: $main_rc"
           grep -E 'Analysis failed with|BUILD SUCCESSFUL' /tmp/detekt-branch.log | tail -3 || true
           grep -E 'Analysis failed with|BUILD SUCCESSFUL' /tmp/detekt-main.log | tail -3 || true
+          echo "Branch Detekt summary:"
+          tail -n 12 /tmp/detekt-branch.log
+          echo "Main Detekt summary:"
+          tail -n 12 /tmp/detekt-main.log
           if [ "$branch_rc" -eq 0 ]; then exit 0; fi
           if [ "$main_rc" -ne 0 ]; then
             echo "::error::Both main and branch fail Detekt; inspect report artifacts to separate existing issues."
