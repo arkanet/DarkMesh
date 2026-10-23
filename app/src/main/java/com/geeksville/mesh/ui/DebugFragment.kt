@@ -127,6 +127,7 @@ class DebugFragment : Fragment() {
 }
 
 private const val LOG_AUTOSCROLL_THRESHOLD = 3
+private const val HEX_RADIX = 16
 
 private val REGEX_ANNOTATED_NODE_ID = Regex("\\(![0-9a-fA-F]{8}\\)$", RegexOption.MULTILINE)
 
@@ -256,7 +257,7 @@ private fun filterDiagnosticLogs(logs: List<MeshLog>, filter: String): List<Mesh
     return logs.filter { log ->
         log.message_type.contains(query, ignoreCase = true) ||
             log.raw_message.contains(query, ignoreCase = true) ||
-            log.fromNum.toUInt().toString(16).contains(nodeQuery, ignoreCase = true)
+            log.fromNum.toUInt().toString(HEX_RADIX).contains(nodeQuery, ignoreCase = true)
     }
 }
 
