@@ -220,7 +220,15 @@ class RadioInterfaceService @Inject constructor(
             } catch (_: com.google.protobuf.InvalidProtocolBufferException) {
                 false
             }
-            if (isEncryptedObservation) {
+            // Unicast encrypted packets may carry important operational traffic;
+            // never classify them as disposable observations.
+            val isBroadcast = try {
+                val frame = MeshProtos.FromRadio.parseFrom(p)
+                frame.hasPacket() && frame.packet.to == -1
+            } catch (_: com.google.protobuf.InvalidProtocolBufferException) {
+                false
+            }
+            if (isEncryptedObservation && isBroadcast) {
                 val dropped = droppedObservations.incrementAndGet()
                 if (dropped % 100L == 1L) warn("Ghost RX backlog: dropped $dropped encrypted observations")
             } else {
