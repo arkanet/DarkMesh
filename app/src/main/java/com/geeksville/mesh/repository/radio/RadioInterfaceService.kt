@@ -38,6 +38,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.selects.select
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,11 +76,19 @@ class RadioInterfaceService @Inject constructor(
     val connectionState = _connectionState.asStateFlow()
 
     private val _receivedData = MutableSharedFlow<ByteArray>()
-    // A single consumer replaces one suspended coroutine per incoming RF frame.
-    private val receiveQueue = Channel<ByteArray>(256)
-    private val droppedObservations = AtomicLong()
+    // A single worker bounds Ghost observations without spawning a coroutine per packet.
+    // Operational/control frames use a separate queue so configuration is not blocked.
+    private val controlQueue = Channel<ByteArray>(Channel.UNLIMITED)
+    private val observationQueue = Channel<ByteArray>(256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    private val receivedObservations = AtomicLong()
     private val receiveWorker = processLifecycle.coroutineScope.launch(dispatchers.io) {
-        for (frame in receiveQueue) _receivedData.emit(frame)
+        while (true) {
+            val frame = controlQueue.tryReceive().getOrNull() ?: select {
+                controlQueue.onReceive { it }
+                observationQueue.onReceive { it }
+            }
+            _receivedData.emit(frame)
+        }
     }
     val receivedData: SharedFlow<ByteArray> = _receivedData
 
@@ -211,29 +221,21 @@ class RadioInterfaceService @Inject constructor(
 
         // ignoreException { debug("FromRadio: ${MeshProtos.FromRadio.parseFrom(p)}") }
 
-        if (receiveQueue.trySend(p).isFailure) {
-            // Preserve configuration and decoded/operational packets. Only unknown
-            // encrypted observations may be dropped when the bounded queue is full.
-            val isEncryptedObservation = try {
-                val frame = MeshProtos.FromRadio.parseFrom(p)
-                frame.hasPacket() && frame.packet.hasEncrypted()
-            } catch (_: com.google.protobuf.InvalidProtocolBufferException) {
-                false
-            }
-            // Unicast encrypted packets may carry important operational traffic;
-            // never classify them as disposable observations.
-            val isBroadcast = try {
-                val frame = MeshProtos.FromRadio.parseFrom(p)
-                frame.hasPacket() && frame.packet.to == -1
-            } catch (_: com.google.protobuf.InvalidProtocolBufferException) {
-                false
-            }
-            if (isEncryptedObservation && isBroadcast) {
-                val dropped = droppedObservations.incrementAndGet()
-                if (dropped % 100L == 1L) warn("Ghost RX backlog: dropped $dropped encrypted observations")
-            } else {
-                processLifecycle.coroutineScope.launch(dispatchers.io) { receiveQueue.send(p) }
-            }
+        val frame = try {
+            MeshProtos.FromRadio.parseFrom(p)
+        } catch (_: com.google.protobuf.InvalidProtocolBufferException) {
+            null
+        }
+        // Only encrypted broadcasts are best-effort Ghost observations.
+        // Unicast, decoded packets and configuration/metadata remain operational.
+        val isObservation = frame?.hasPacket() == true &&
+            frame.packet.hasEncrypted() && frame.packet.to == -1
+        if (isObservation) {
+            observationQueue.trySend(p)
+            val count = receivedObservations.incrementAndGet()
+            if (count % 1000L == 0L) debug("Ghost RX observations queued: $count")
+        } else {
+            controlQueue.trySend(p)
         }
     }
 
