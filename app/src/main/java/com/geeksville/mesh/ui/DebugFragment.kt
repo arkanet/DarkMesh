@@ -198,18 +198,7 @@ internal fun DebugScreen(
     val logs by viewModel.meshLog.collectAsStateWithLifecycle()
     var filter by remember { mutableStateOf("") }
     val context = LocalContext.current
-    val visibleLogs = remember(logs, filter) {
-        val query = filter.trim()
-        if (query.isEmpty()) {
-            logs
-        } else {
-            logs.filter { log ->
-            log.message_type.contains(query, ignoreCase = true) ||
-                log.raw_message.contains(query, ignoreCase = true) ||
-                log.fromNum.toUInt().toString(16).contains(query.removePrefix("!"), ignoreCase = true)
-            }
-        }
-    }
+    val visibleLogs = remember(logs, filter) { filterDiagnosticLogs(logs, filter) }
     val shouldAutoScroll by remember { derivedStateOf { listState.firstVisibleItemIndex < LOG_AUTOSCROLL_THRESHOLD } }
     if (shouldAutoScroll) {
         LaunchedEffect(visibleLogs) {
@@ -257,6 +246,17 @@ internal fun DebugScreen(
                 items(visibleLogs, key = { it.uuid }) { log -> DebugItem(annotateMeshLog(log)) }
             }
         }
+    }
+}
+
+private fun filterDiagnosticLogs(logs: List<MeshLog>, filter: String): List<MeshLog> {
+    val query = filter.trim()
+    if (query.isEmpty()) return logs
+    val nodeQuery = query.removePrefix("!")
+    return logs.filter { log ->
+        log.message_type.contains(query, ignoreCase = true) ||
+            log.raw_message.contains(query, ignoreCase = true) ||
+            log.fromNum.toUInt().toString(16).contains(nodeQuery, ignoreCase = true)
     }
 }
 
