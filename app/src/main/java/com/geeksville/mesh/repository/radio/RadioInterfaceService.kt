@@ -79,7 +79,10 @@ class RadioInterfaceService @Inject constructor(
     // A single worker bounds Ghost observations without spawning a coroutine per packet.
     // Operational/control frames use a separate queue so configuration is not blocked.
     private val controlQueue = Channel<ByteArray>(Channel.UNLIMITED)
-    private val observationQueue = Channel<ByteArray>(GHOST_OBSERVATION_CAPACITY, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    private val observationQueue = Channel<ByteArray>(
+        GHOST_OBSERVATION_CAPACITY,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
     private val receivedObservations = AtomicLong()
     init {
         processLifecycle.coroutineScope.launch(dispatchers.io) {
