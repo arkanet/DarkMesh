@@ -70,7 +70,12 @@ class PacketDaoTest {
                 contact_key = contactKey,
                 received_time = System.currentTimeMillis(),
                 read = false,
-                DataPacket(DataPacket.ID_BROADCAST, 0, "Message $it!"),
+                DataPacket(
+                    to = DataPacket.ID_BROADCAST,
+                    bytes = "Message $it!".toByteArray(),
+                    dataType = Portnums.PortNum.TEXT_MESSAGE_APP_VALUE,
+                    clearText = "Message $it!",
+                ),
             )
         }
     }
