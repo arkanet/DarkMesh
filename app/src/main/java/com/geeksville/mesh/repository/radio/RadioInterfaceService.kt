@@ -79,15 +79,17 @@ class RadioInterfaceService @Inject constructor(
     // A single worker bounds Ghost observations without spawning a coroutine per packet.
     // Operational/control frames use a separate queue so configuration is not blocked.
     private val controlQueue = Channel<ByteArray>(Channel.UNLIMITED)
-    private val observationQueue = Channel<ByteArray>(256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    private val observationQueue = Channel<ByteArray>(GHOST_OBSERVATION_CAPACITY, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     private val receivedObservations = AtomicLong()
-    private val receiveWorker = processLifecycle.coroutineScope.launch(dispatchers.io) {
+    init {
+        processLifecycle.coroutineScope.launch(dispatchers.io) {
         while (true) {
             val frame = controlQueue.tryReceive().getOrNull() ?: select {
                 controlQueue.onReceive { it }
                 observationQueue.onReceive { it }
             }
             _receivedData.emit(frame)
+        }
         }
     }
     val receivedData: SharedFlow<ByteArray> = _receivedData
@@ -130,6 +132,8 @@ class RadioInterfaceService @Inject constructor(
     }
 
     companion object {
+        private const val GHOST_OBSERVATION_CAPACITY = 256
+        private const val GHOST_METRIC_INTERVAL = 1000L
         const val DEVADDR_KEY = "devAddr2" // the new name for devaddr
         private const val HEARTBEAT_INTERVAL_MILLIS = 5 * 60 * 1000L
     }
@@ -233,7 +237,7 @@ class RadioInterfaceService @Inject constructor(
         if (isObservation) {
             observationQueue.trySend(p)
             val count = receivedObservations.incrementAndGet()
-            if (count % 1000L == 0L) debug("Ghost RX observations queued: $count")
+            if (count % GHOST_METRIC_INTERVAL == 0L) debug("Ghost RX observations queued: $count")
         } else {
             controlQueue.trySend(p)
         }
