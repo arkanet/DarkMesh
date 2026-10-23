@@ -80,8 +80,36 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Check detekt
-        run: ./gradlew detekt
+      - name: Compare Detekt against main baseline
+        shell: bash
+        run: |
+          set -uo pipefail
+          ./gradlew detekt --console=plain > /tmp/detekt-branch.log 2>&1
+          branch_rc=$?
+          git fetch --no-tags --depth=1 origin main
+          git worktree add --detach /tmp/darkmesh-main FETCH_HEAD
+          (
+            cd /tmp/darkmesh-main
+            ./gradlew detekt --console=plain > /tmp/detekt-main.log 2>&1
+          )
+          main_rc=$?
+          echo "Branch detekt exit: $branch_rc"
+          echo "Main detekt exit: $main_rc"
+          grep -E 'Analysis failed with|BUILD SUCCESSFUL' /tmp/detekt-branch.log | tail -3 || true
+          grep -E 'Analysis failed with|BUILD SUCCESSFUL' /tmp/detekt-main.log | tail -3 || true
+          if [ "$branch_rc" -eq 0 ]; then exit 0; fi
+          if [ "$main_rc" -ne 0 ]; then
+            echo "::error::Both main and branch fail Detekt; inspect report artifacts to separate existing issues."
+          fi
+          exit "$branch_rc"
+
+      - name: Upload Detekt comparison logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: detekt-main-comparison
+          path: /tmp/detekt-*.log
+          retention-days: 7
 
       - name: Upload build reports
         if: ${{ !cancelled() }}
