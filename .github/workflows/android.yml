@@ -52,6 +52,16 @@ jobs:
     - name: Run local tests
       run: ./gradlew testFdroidDebug testGoogleDebug
 
+    - name: Upload installable Ghost APK (F-Droid debug)
+      if: ${{ success() && github.ref == 'refs/heads/fix/ghost-live-backpressure-log-export' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: DarkMesh-Ghost-fdroid-debug-apk
+        path: app/build/outputs/apk/fdroid/debug/*.apk
+        if-no-files-found: error
+        retention-days: 30
+        compression-level: 0
+
     - name: Upload build reports
       if: ${{ !cancelled() }}
       uses: actions/upload-artifact@v4
