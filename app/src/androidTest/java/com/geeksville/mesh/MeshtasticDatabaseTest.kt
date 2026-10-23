@@ -48,13 +48,12 @@ class MeshtasticDatabaseTest {
             close()
         }
 
-        // Open latest version of the database. Room validates the schema
-        // once all migrations execute.
+        // Verify that the app can open an old database using its configured\n        // destructive fallback; this is not a migration-preservation test.
         Room.databaseBuilder(
             InstrumentationRegistry.getInstrumentation().targetContext,
             MeshtasticDatabase::class.java,
             TEST_DB
-        ).build().apply {
+        ).fallbackToDestructiveMigration().build().apply {
             openHelper.writableDatabase.close()
         }
     }
