@@ -88,6 +88,7 @@ jobs:
           branch_rc=$?
           git fetch --no-tags --depth=1 origin main
           git worktree add --detach /tmp/darkmesh-main FETCH_HEAD
+          git -C /tmp/darkmesh-main submodule update --init --recursive
           (
             cd /tmp/darkmesh-main
             ./gradlew detekt --console=plain > /tmp/detekt-main.log 2>&1
