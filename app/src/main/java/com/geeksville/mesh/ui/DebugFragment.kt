@@ -17,6 +17,7 @@
 
 package com.geeksville.mesh.ui
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -34,6 +35,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.Button
+import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Card
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
@@ -48,10 +50,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
@@ -189,23 +194,69 @@ internal fun DebugScreen(
 ) {
     val listState = rememberLazyListState()
     val logs by viewModel.meshLog.collectAsStateWithLifecycle()
-
+    var filter by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val visibleLogs = remember(logs, filter) {
+        val query = filter.trim()
+        if (query.isEmpty()) logs else logs.filter { log ->
+            log.message_type.contains(query, ignoreCase = true) ||
+                log.raw_message.contains(query, ignoreCase = true) ||
+                log.fromNum.toUInt().toString(16).contains(query.removePrefix("!"), ignoreCase = true)
+        }
+    }
     val shouldAutoScroll by remember { derivedStateOf { listState.firstVisibleItemIndex < 3 } }
     if (shouldAutoScroll) {
-        LaunchedEffect(logs) {
-            if (!listState.isScrollInProgress) {
+        LaunchedEffect(visibleLogs) {
+            if (visibleLogs.isNotEmpty() && !listState.isScrollInProgress) {
                 listState.scrollToItem(0)
             }
         }
     }
 
-    SelectionContainer {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            state = listState,
-            contentPadding = contentPadding,
+    Column(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
+        OutlinedTextField(
+            value = filter,
+            onValueChange = { filter = it },
+            label = { Text("Filter logs (node, type, text)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            items(logs, key = { it.uuid }) { log -> DebugItem(annotateMeshLog(log)) }
+            Text("${visibleLogs.size} / ${logs.size} recent logs")
+            Button(
+                enabled = visibleLogs.isNotEmpty(),
+                onClick = {
+                    // Share only the currently displayed, bounded log snapshot.
+                    // This may contain sensitive node identifiers and message content.
+                    val export = buildString {
+                        appendLine("DarkMesh diagnostic log — filtered snapshot")
+                        appendLine("Entries: ${visibleLogs.size} (latest ${logs.size} retained in view)")
+                        visibleLogs.forEach { log ->
+                            appendLine("--- ${DateFormat.getDateTimeInstance().format(log.received_date)} | ${log.message_type} ---")
+                            appendLine(log.raw_message)
+                        }
+                    }
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, "DarkMesh diagnostic log")
+                        putExtra(Intent.EXTRA_TEXT, export)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Export filtered logs"))
+                },
+            ) {
+                Text("Export")
+            }
+        }
+        SelectionContainer {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                state = listState,
+            ) {
+                items(visibleLogs, key = { it.uuid }) { log -> DebugItem(annotateMeshLog(log)) }
+            }
         }
     }
 }
