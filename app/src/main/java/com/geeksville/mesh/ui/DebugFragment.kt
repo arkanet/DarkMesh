@@ -36,6 +36,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.Button
 import androidx.compose.material.OutlinedTextField
+import androidx.compose.material.DropdownMenu
+import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.Card
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
@@ -198,8 +200,29 @@ internal fun DebugScreen(
     val listState = rememberLazyListState()
     val logs by viewModel.meshLog.collectAsStateWithLifecycle()
     var filter by remember { mutableStateOf("") }
+    var fromFilter by remember { mutableStateOf("") }
+    var toFilter by remember { mutableStateOf("") }
+    var channelFilter by remember { mutableStateOf("") }
+    var decodeFilter by remember { mutableStateOf("ALL") }
+    var decodeMenuExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val visibleLogs = remember(logs, filter) { filterDiagnosticLogs(logs, filter) }
+    val visibleLogs = remember(logs, filter, fromFilter, toFilter, channelFilter, decodeFilter) {
+        val from = parseGhostNodeId(fromFilter)
+        val to = parseGhostNodeId(toFilter)
+        val channel = parseGhostChannel(channelFilter)
+        filterDiagnosticLogs(logs, filter).filter { log ->
+            val packet = log.meshPacket
+            (fromFilter.isBlank() || (from != null && packet?.from?.toUInt() == from)) &&
+                (toFilter.isBlank() || (to != null && packet?.to?.toUInt() == to)) &&
+                (channelFilter.isBlank() || channelFilter.equals("ALL", ignoreCase = true) ||
+                    (channel != null && packet?.channel == channel)) &&
+                when (decodeFilter) {
+                    "Decoded" -> packet?.hasDecoded() == true
+                    "Not decoded" -> packet?.hasEncrypted() == true
+                    else -> true
+                }
+        }
+    }
     val shouldAutoScroll by remember { derivedStateOf { listState.firstVisibleItemIndex < LOG_AUTOSCROLL_THRESHOLD } }
     if (shouldAutoScroll) {
         LaunchedEffect(visibleLogs) {
@@ -217,6 +240,51 @@ internal fun DebugScreen(
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
         )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = fromFilter,
+                onValueChange = { fromFilter = it },
+                label = { Text("FROM (hex / dec)") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedTextField(
+                value = toFilter,
+                onValueChange = { toFilter = it },
+                label = { Text("TO (hex / dec)") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = channelFilter,
+                onValueChange = { channelFilter = it },
+                label = { Text("CH (ALL / ID)") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Button(onClick = { decodeMenuExpanded = true }) { Text(decodeFilter) }
+                DropdownMenu(
+                    expanded = decodeMenuExpanded,
+                    onDismissRequest = { decodeMenuExpanded = false },
+                ) {
+                    listOf("ALL", "Decoded", "Not decoded").forEach { option ->
+                        DropdownMenuItem(onClick = {
+                            decodeFilter = option
+                            decodeMenuExpanded = false
+                        }) { Text(option) }
+                    }
+                }
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -247,6 +315,26 @@ internal fun DebugScreen(
                 items(visibleLogs, key = { it.uuid }) { log -> DebugItem(annotateMeshLog(log)) }
             }
         }
+    }
+}
+
+private fun parseGhostNodeId(input: String): UInt? {
+    val value = input.trim()
+    if (value.isEmpty()) return null
+    return when {
+        value.startsWith("!") -> value.substring(1).toUIntOrNull(16)
+        value.startsWith("0x", ignoreCase = true) -> value.substring(2).toUIntOrNull(16)
+        value.any { it in 'a'..'f' || it in 'A'..'F' } -> value.toUIntOrNull(16)
+        else -> value.toUIntOrNull(10)
+    }
+}
+
+private fun parseGhostChannel(input: String): Int? {
+    val value = input.trim()
+    return if (value.startsWith("0x", ignoreCase = true)) {
+        value.substring(2).toIntOrNull(16)
+    } else {
+        value.toIntOrNull()
     }
 }
 
