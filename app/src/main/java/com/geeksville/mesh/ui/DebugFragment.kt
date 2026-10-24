@@ -131,7 +131,6 @@ class DebugFragment : Fragment() {
 private const val LOG_AUTOSCROLL_THRESHOLD = 3
 private const val HEX_RADIX = 16
 private const val DECIMAL_RADIX = 10
-private const val FILTER_PADDING_DP = 8
 
 private val REGEX_ANNOTATED_NODE_ID = Regex("\\(![0-9a-fA-F]{8}\\)$", RegexOption.MULTILINE)
 
@@ -201,28 +200,10 @@ internal fun DebugScreen(
 ) {
     val listState = rememberLazyListState()
     val logs by viewModel.meshLog.collectAsStateWithLifecycle()
-    var filter by remember { mutableStateOf("") }
-    var fromFilter by remember { mutableStateOf("") }
-    var toFilter by remember { mutableStateOf("") }
-    var channelFilter by remember { mutableStateOf("") }
-    var decodeFilter by remember { mutableStateOf("ALL") }
-    var decodeMenuExpanded by remember { mutableStateOf(false) }
-    val visibleLogs = remember(logs, filter, fromFilter, toFilter, channelFilter, decodeFilter) {
-        val from = parseGhostNodeId(fromFilter)
-        val to = parseGhostNodeId(toFilter)
-        val channel = parseGhostChannel(channelFilter)
-        filterDiagnosticLogs(logs, filter).filter { log ->
-            val packet = log.meshPacket
-            (fromFilter.isBlank() || (from != null && packet?.from?.toUInt() == from)) &&
-                (toFilter.isBlank() || (to != null && packet?.to?.toUInt() == to)) &&
-                (channelFilter.isBlank() || channelFilter.equals("ALL", ignoreCase = true) ||
-                    (channel != null && packet?.channel == channel)) &&
-                when (decodeFilter) {
-                    "Decoded" -> packet?.hasDecoded() == true
-                    "Not decoded" -> packet?.hasEncrypted() == true
-                    else -> true
-                }
-        }
+    val filterState = remember { GhostLogFilterState() }
+    val visibleLogs = remember(logs, filterState.filter, filterState.fromFilter,
+        filterState.toFilter, filterState.channelFilter, filterState.decodeFilter) {
+        selectGhostLogs(logs, filterState)
     }
     val shouldAutoScroll by remember { derivedStateOf { listState.firstVisibleItemIndex < LOG_AUTOSCROLL_THRESHOLD } }
     if (shouldAutoScroll) {
@@ -238,128 +219,12 @@ internal fun DebugScreen(
         visibleLogs = visibleLogs,
         listState = listState,
         contentPadding = contentPadding,
-        filter = filter,
-        onFilterChange = { filter = it },
-        fromFilter = fromFilter,
-        onFromFilterChange = { fromFilter = it },
-        toFilter = toFilter,
-        onToFilterChange = { toFilter = it },
-        channelFilter = channelFilter,
-        onChannelFilterChange = { channelFilter = it },
-        decodeFilter = decodeFilter,
-        onDecodeFilterChange = { decodeFilter = it },
-        decodeMenuExpanded = decodeMenuExpanded,
-        onDecodeMenuExpandedChange = { decodeMenuExpanded = it },
+        state = filterState,
     )
 }
 
-@Composable
-private fun GhostLogContent(
-    logs: List<MeshLog>,
-    visibleLogs: List<MeshLog>,
-    listState: androidx.compose.foundation.lazy.LazyListState,
-    contentPadding: PaddingValues,
-    filter: String,
-    onFilterChange: (String) -> Unit,
-    fromFilter: String,
-    onFromFilterChange: (String) -> Unit,
-    toFilter: String,
-    onToFilterChange: (String) -> Unit,
-    channelFilter: String,
-    onChannelFilterChange: (String) -> Unit,
-    decodeFilter: String,
-    onDecodeFilterChange: (String) -> Unit,
-    decodeMenuExpanded: Boolean,
-    onDecodeMenuExpandedChange: (Boolean) -> Unit,
-) {
-    val context = LocalContext.current
-    Column(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
-        OutlinedTextField(
-            value = filter,
-            onValueChange = onFilterChange,
-            label = { Text("Filter logs (node, type, text)") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = FILTER_PADDING_DP.dp),
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = FILTER_PADDING_DP.dp),
-            horizontalArrangement = Arrangement.spacedBy(FILTER_PADDING_DP.dp),
-        ) {
-            OutlinedTextField(
-                value = fromFilter,
-                onValueChange = onFromFilterChange,
-                label = { Text("FROM (hex / dec)") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            OutlinedTextField(
-                value = toFilter,
-                onValueChange = onToFilterChange,
-                label = { Text("TO (hex / dec)") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = FILTER_PADDING_DP.dp),
-            horizontalArrangement = Arrangement.spacedBy(FILTER_PADDING_DP.dp),
-        ) {
-            OutlinedTextField(
-                value = channelFilter,
-                onValueChange = onChannelFilterChange,
-                label = { Text("CH (ALL / ID)") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Button(onClick = { onDecodeMenuExpandedChange(true) }) { Text(decodeFilter) }
-                DropdownMenu(
-                    expanded = decodeMenuExpanded,
-                    onDismissRequest = { onDecodeMenuExpandedChange(false) },
-                ) {
-                    listOf("ALL", "Decoded", "Not decoded").forEach { option ->
-                        DropdownMenuItem(onClick = {
-                            onDecodeFilterChange(option)
-                            onDecodeMenuExpandedChange(false)
-                        }) { Text(option) }
-                    }
-                }
-            }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = FILTER_PADDING_DP.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text("${visibleLogs.size} / ${logs.size} recent logs")
-            Button(
-                enabled = visibleLogs.isNotEmpty(),
-                onClick = {
-                    // Share only the currently displayed, bounded log snapshot.
-                    // This may contain sensitive node identifiers and message content.
-                    val export = formatDiagnosticLog(visibleLogs)
-                    val intent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "DarkMesh diagnostic log")
-                        putExtra(Intent.EXTRA_TEXT, export)
-                    }
-                    context.startActivity(Intent.createChooser(intent, "Export filtered logs"))
-                },
-            ) {
-                Text("Export")
-            }
-        }
-        SelectionContainer {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                state = listState,
-            ) {
-                items(visibleLogs, key = { it.uuid }) { log -> DebugItem(annotateMeshLog(log)) }
-            }
-        }
-    }
-}
 
-private fun parseGhostNodeId(input: String): UInt? {
+internal fun parseGhostNodeId(input: String): UInt? {
     val value = input.trim()
     if (value.isEmpty()) return null
     return when {
@@ -370,7 +235,7 @@ private fun parseGhostNodeId(input: String): UInt? {
     }
 }
 
-private fun parseGhostChannel(input: String): Int? {
+internal fun parseGhostChannel(input: String): Int? {
     val value = input.trim()
     return if (value.startsWith("0x", ignoreCase = true)) {
         value.substring(2).toIntOrNull(HEX_RADIX)
@@ -379,7 +244,7 @@ private fun parseGhostChannel(input: String): Int? {
     }
 }
 
-private fun filterDiagnosticLogs(logs: List<MeshLog>, filter: String): List<MeshLog> {
+internal fun filterDiagnosticLogs(logs: List<MeshLog>, filter: String): List<MeshLog> {
     val query = filter.trim()
     if (query.isEmpty()) return logs
     val nodeQuery = query.removePrefix("!")
