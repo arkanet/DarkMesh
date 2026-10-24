@@ -137,7 +137,7 @@ private val REGEX_ANNOTATED_NODE_ID = Regex("\\(![0-9a-fA-F]{8}\\)$", RegexOptio
 /**
  * Transform the input [MeshLog] by enhancing the raw message with annotations.
  */
-private fun annotateMeshLog(meshLog: MeshLog): MeshLog {
+internal fun annotateMeshLog(meshLog: MeshLog): MeshLog {
     val annotated = when (meshLog.message_type) {
         "Packet" -> meshLog.meshPacket?.let { packet ->
             annotateRawMessage(meshLog.raw_message, packet.from, packet.to)
@@ -255,7 +255,7 @@ internal fun filterDiagnosticLogs(logs: List<MeshLog>, filter: String): List<Mes
     }
 }
 
-private fun formatDiagnosticLog(logs: List<MeshLog>): String = buildString {
+internal fun formatDiagnosticLog(logs: List<MeshLog>): String = buildString {
     appendLine("DarkMesh diagnostic log — filtered snapshot")
     appendLine("Entries: ${logs.size} (recent log window)")
     val dateFormat = DateFormat.getDateTimeInstance()
