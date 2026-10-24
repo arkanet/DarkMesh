@@ -98,7 +98,7 @@ class MeshLogRepository @Inject constructor(
     }
 
     companion object {
-        private const val MAX_ITEMS = 500
+        private const val MAX_ITEMS = 2000
         private const val MAX_MESH_PACKETS = 10000
         private const val MILLIS_TO_SECONDS = 1000
     }
