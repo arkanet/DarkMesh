@@ -130,6 +130,8 @@ class DebugFragment : Fragment() {
 
 private const val LOG_AUTOSCROLL_THRESHOLD = 3
 private const val HEX_RADIX = 16
+private const val DECIMAL_RADIX = 10
+private const val FILTER_PADDING_DP = 8
 
 private val REGEX_ANNOTATED_NODE_ID = Regex("\\(![0-9a-fA-F]{8}\\)$", RegexOption.MULTILINE)
 
@@ -205,7 +207,6 @@ internal fun DebugScreen(
     var channelFilter by remember { mutableStateOf("") }
     var decodeFilter by remember { mutableStateOf("ALL") }
     var decodeMenuExpanded by remember { mutableStateOf(false) }
-    val context = LocalContext.current
     val visibleLogs = remember(logs, filter, fromFilter, toFilter, channelFilter, decodeFilter) {
         val from = parseGhostNodeId(fromFilter)
         val to = parseGhostNodeId(toFilter)
@@ -232,61 +233,101 @@ internal fun DebugScreen(
         }
     }
 
+    GhostLogContent(
+        logs = logs,
+        visibleLogs = visibleLogs,
+        listState = listState,
+        contentPadding = contentPadding,
+        filter = filter,
+        onFilterChange = { filter = it },
+        fromFilter = fromFilter,
+        onFromFilterChange = { fromFilter = it },
+        toFilter = toFilter,
+        onToFilterChange = { toFilter = it },
+        channelFilter = channelFilter,
+        onChannelFilterChange = { channelFilter = it },
+        decodeFilter = decodeFilter,
+        onDecodeFilterChange = { decodeFilter = it },
+        decodeMenuExpanded = decodeMenuExpanded,
+        onDecodeMenuExpandedChange = { decodeMenuExpanded = it },
+    )
+}
+
+@Composable
+private fun GhostLogContent(
+    logs: List<MeshLog>,
+    visibleLogs: List<MeshLog>,
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    contentPadding: PaddingValues,
+    filter: String,
+    onFilterChange: (String) -> Unit,
+    fromFilter: String,
+    onFromFilterChange: (String) -> Unit,
+    toFilter: String,
+    onToFilterChange: (String) -> Unit,
+    channelFilter: String,
+    onChannelFilterChange: (String) -> Unit,
+    decodeFilter: String,
+    onDecodeFilterChange: (String) -> Unit,
+    decodeMenuExpanded: Boolean,
+    onDecodeMenuExpandedChange: (Boolean) -> Unit,
+) {
+    val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
         OutlinedTextField(
             value = filter,
-            onValueChange = { filter = it },
+            onValueChange = onFilterChange,
             label = { Text("Filter logs (node, type, text)") },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = FILTER_PADDING_DP.dp),
         )
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = FILTER_PADDING_DP.dp),
+            horizontalArrangement = Arrangement.spacedBy(FILTER_PADDING_DP.dp),
         ) {
             OutlinedTextField(
                 value = fromFilter,
-                onValueChange = { fromFilter = it },
+                onValueChange = onFromFilterChange,
                 label = { Text("FROM (hex / dec)") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
                 value = toFilter,
-                onValueChange = { toFilter = it },
+                onValueChange = onToFilterChange,
                 label = { Text("TO (hex / dec)") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = FILTER_PADDING_DP.dp),
+            horizontalArrangement = Arrangement.spacedBy(FILTER_PADDING_DP.dp),
         ) {
             OutlinedTextField(
                 value = channelFilter,
-                onValueChange = { channelFilter = it },
+                onValueChange = onChannelFilterChange,
                 label = { Text("CH (ALL / ID)") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
             Column(modifier = Modifier.weight(1f)) {
-                Button(onClick = { decodeMenuExpanded = true }) { Text(decodeFilter) }
+                Button(onClick = { onDecodeMenuExpandedChange(true) }) { Text(decodeFilter) }
                 DropdownMenu(
                     expanded = decodeMenuExpanded,
-                    onDismissRequest = { decodeMenuExpanded = false },
+                    onDismissRequest = { onDecodeMenuExpandedChange(false) },
                 ) {
                     listOf("ALL", "Decoded", "Not decoded").forEach { option ->
                         DropdownMenuItem(onClick = {
-                            decodeFilter = option
-                            decodeMenuExpanded = false
+                            onDecodeFilterChange(option)
+                            onDecodeMenuExpandedChange(false)
                         }) { Text(option) }
                     }
                 }
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = FILTER_PADDING_DP.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text("${visibleLogs.size} / ${logs.size} recent logs")
@@ -322,17 +363,17 @@ private fun parseGhostNodeId(input: String): UInt? {
     val value = input.trim()
     if (value.isEmpty()) return null
     return when {
-        value.startsWith("!") -> value.substring(1).toUIntOrNull(16)
-        value.startsWith("0x", ignoreCase = true) -> value.substring(2).toUIntOrNull(16)
-        value.any { it in 'a'..'f' || it in 'A'..'F' } -> value.toUIntOrNull(16)
-        else -> value.toUIntOrNull(10)
+        value.startsWith("!") -> value.substring(1).toUIntOrNull(HEX_RADIX)
+        value.startsWith("0x", ignoreCase = true) -> value.substring(2).toUIntOrNull(HEX_RADIX)
+        value.any { it in 'a'..'f' || it in 'A'..'F' } -> value.toUIntOrNull(HEX_RADIX)
+        else -> value.toUIntOrNull(DECIMAL_RADIX)
     }
 }
 
 private fun parseGhostChannel(input: String): Int? {
     val value = input.trim()
     return if (value.startsWith("0x", ignoreCase = true)) {
-        value.substring(2).toIntOrNull(16)
+        value.substring(2).toIntOrNull(HEX_RADIX)
     } else {
         value.toIntOrNull()
     }
