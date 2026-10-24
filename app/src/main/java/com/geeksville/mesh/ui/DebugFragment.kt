@@ -199,9 +199,30 @@ internal fun DebugScreen(
 ) {
     val listState = rememberLazyListState()
     val logs by viewModel.meshLog.collectAsStateWithLifecycle()
-    var filters by remember { mutableStateOf(GhostLogFilters()) }
+    var filter by remember { mutableStateOf("") }
+    var fromFilter by remember { mutableStateOf("") }
+    var toFilter by remember { mutableStateOf("") }
+    var channelFilter by remember { mutableStateOf("") }
+    var decodeFilter by remember { mutableStateOf("ALL") }
+    var decodeMenuExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val visibleLogs = remember(logs, filters) { filterGhostLogs(logs, filters) }
+    val visibleLogs = remember(logs, filter, fromFilter, toFilter, channelFilter, decodeFilter) {
+        val from = parseGhostNodeId(fromFilter)
+        val to = parseGhostNodeId(toFilter)
+        val channel = parseGhostChannel(channelFilter)
+        filterDiagnosticLogs(logs, filter).filter { log ->
+            val packet = log.meshPacket
+            (fromFilter.isBlank() || (from != null && packet?.from?.toUInt() == from)) &&
+                (toFilter.isBlank() || (to != null && packet?.to?.toUInt() == to)) &&
+                (channelFilter.isBlank() || channelFilter.equals("ALL", ignoreCase = true) ||
+                    (channel != null && packet?.channel == channel)) &&
+                when (decodeFilter) {
+                    "Decoded" -> packet?.hasDecoded() == true
+                    "Not decoded" -> packet?.hasEncrypted() == true
+                    else -> true
+                }
+        }
+    }
     val shouldAutoScroll by remember { derivedStateOf { listState.firstVisibleItemIndex < LOG_AUTOSCROLL_THRESHOLD } }
     if (shouldAutoScroll) {
         LaunchedEffect(visibleLogs) {
@@ -212,87 +233,219 @@ internal fun DebugScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
-        GhostFilterControls(filters = filters, onChange = { filters = it })
-private data class GhostLogFilters(
-    val text: String = "",
-    val from: String = "",
-    val to: String = "",
-    val channel: String = "",
-    val decode: String = "ALL",
-)
-
-private fun filterGhostLogs(logs: List<MeshLog>, filters: GhostLogFilters): List<MeshLog> {
-    val from = parseGhostNodeId(filters.from)
-    val to = parseGhostNodeId(filters.to)
-    val channel = parseGhostChannel(filters.channel)
-    return filterDiagnosticLogs(logs, filters.text).filter { log ->
-        val packet = log.meshPacket
-        val fromMatches = filters.from.isBlank() || (from != null && packet?.from?.toUInt() == from)
-        val toMatches = filters.to.isBlank() || (to != null && packet?.to?.toUInt() == to)
-        val channelMatches = filters.channel.isBlank() ||
-            filters.channel.equals("ALL", ignoreCase = true) ||
-            (channel != null && packet?.channel == channel)
-        val decodeMatches = when (filters.decode) {
-            "Decoded" -> packet?.hasDecoded() == true
-            "Not decoded" -> packet?.hasEncrypted() == true
-            else -> true
+        OutlinedTextField(
+            value = filter,
+            onValueChange = { filter = it },
+            label = { Text("Filter logs (node, type, text)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = fromFilter,
+                onValueChange = { fromFilter = it },
+                label = { Text("FROM (hex / dec)") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedTextField(
+                value = toFilter,
+                onValueChange = { toFilter = it },
+                label = { Text("TO (hex / dec)") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
         }
-        fromMatches && toMatches && channelMatches && decodeMatches
-    }
-}
-
-@Composable
-private fun GhostFilterControls(filters: GhostLogFilters, onChange: (GhostLogFilters) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    OutlinedTextField(
-        value = filters.text,
-        onValueChange = { onChange(filters.copy(text = it)) },
-        label = { Text("Filter logs (node, type, text)") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-    )
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        OutlinedTextField(
-            value = filters.from,
-            onValueChange = { onChange(filters.copy(from = it)) },
-            label = { Text("FROM (hex / dec)") },
-            singleLine = true,
-            modifier = Modifier.weight(1f),
-        )
-        OutlinedTextField(
-            value = filters.to,
-            onValueChange = { onChange(filters.copy(to = it)) },
-            label = { Text("TO (hex / dec)") },
-            singleLine = true,
-            modifier = Modifier.weight(1f),
-        )
-    }
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        OutlinedTextField(
-            value = filters.channel,
-            onValueChange = { onChange(filters.copy(channel = it)) },
-            label = { Text("CH (ALL / ID)") },
-            singleLine = true,
-            modifier = Modifier.weight(1f),
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Button(onClick = { expanded = true }) { Text(filters.decode) }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                listOf("ALL", "Decoded", "Not decoded").forEach { option ->
-                    DropdownMenuItem(onClick = {
-                        onChange(filters.copy(decode = option))
-                        expanded = false
-                    }) { Text(option) }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = channelFilter,
+                onValueChange = { channelFilter = it },
+                label = { Text("CH (ALL / ID)") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Button(onClick = { decodeMenuExpanded = true }) { Text(decodeFilter) }
+                DropdownMenu(
+                    expanded = decodeMenuExpanded,
+                    onDismissRequest = { decodeMenuExpanded = false },
+                ) {
+                    listOf("ALL", "Decoded", "Not decoded").forEach { option ->
+                        DropdownMenuItem(onClick = {
+                            decodeFilter = option
+                            decodeMenuExpanded = false
+                        }) { Text(option) }
+                    }
                 }
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text("${visibleLogs.size} / ${logs.size} recent logs")
+            Button(
+                enabled = visibleLogs.isNotEmpty(),
+                onClick = {
+                    // Share only the currently displayed, bounded log snapshot.
+                    // This may contain sensitive node identifiers and message content.
+                    val export = formatDiagnosticLog(visibleLogs)
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, "DarkMesh diagnostic log")
+                        putExtra(Intent.EXTRA_TEXT, export)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Export filtered logs"))
+                },
+            ) {
+                Text("Export")
+            }
+        }
+        SelectionContainer {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                state = listState,
+            ) {
+                items(visibleLogs, key = { it.uuid }) { log -> DebugItem(annotateMeshLog(log)) }
             }
         }
     }
 }
 
+private fun parseGhostNodeId(input: String): UInt? {
+    val value = input.trim()
+    if (value.isEmpty()) return null
+    return when {
+        value.startsWith("!") -> value.substring(1).toUIntOrNull(16)
+        value.startsWith("0x", ignoreCase = true) -> value.substring(2).toUIntOrNull(16)
+        value.any { it in 'a'..'f' || it in 'A'..'F' } -> value.toUIntOrNull(16)
+        else -> value.toUIntOrNull(10)
+    }
+}
 
+private fun parseGhostChannel(input: String): Int? {
+    val value = input.trim()
+    return if (value.startsWith("0x", ignoreCase = true)) {
+        value.substring(2).toIntOrNull(16)
+    } else {
+        value.toIntOrNull()
+    }
+}
+
+private fun filterDiagnosticLogs(logs: List<MeshLog>, filter: String): List<MeshLog> {
+    val query = filter.trim()
+    if (query.isEmpty()) return logs
+    val nodeQuery = query.removePrefix("!")
+    return logs.filter { log ->
+        log.message_type.contains(query, ignoreCase = true) ||
+            log.raw_message.contains(query, ignoreCase = true) ||
+            log.fromNum.toUInt().toString(HEX_RADIX).contains(nodeQuery, ignoreCase = true)
+    }
+}
+
+private fun formatDiagnosticLog(logs: List<MeshLog>): String = buildString {
+    appendLine("DarkMesh diagnostic log — filtered snapshot")
+    appendLine("Entries: ${logs.size} (recent log window)")
+    val dateFormat = DateFormat.getDateTimeInstance()
+    logs.forEach { log ->
+        appendLine("--- ${dateFormat.format(log.received_date)} | ${log.message_type} ---")
+        appendLine(log.raw_message)
+    }
+}
+
+@Composable
+internal fun DebugItem(log: MeshLog) {
+    val timeFormat = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.MEDIUM)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(4.dp),
+        elevation = 4.dp,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Surface {
+            Column(
+                modifier = Modifier.padding(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = log.message_type,
+                        modifier = Modifier.weight(1f),
+                        style = TextStyle(fontWeight = FontWeight.Bold),
+                    )
+                    Icon(
+                        imageVector = Icons.Outlined.CloudDownload,
+                        contentDescription = stringResource(id = R.string.logs),
+                        tint = Color.Gray.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                    Text(
+                        text = timeFormat.format(log.received_date),
+                        style = TextStyle(fontWeight = FontWeight.Bold),
+                    )
+                }
+
+                val style = SpanStyle(
+                    color = colorResource(id = R.color.colorAnnotation),
+                    fontStyle = FontStyle.Italic,
+                )
+                val annotatedString = buildAnnotatedString {
+                    append(log.raw_message)
+                    REGEX_ANNOTATED_NODE_ID.findAll(log.raw_message).toList().reversed().forEach {
+                        addStyle(style = style, start = it.range.first, end = it.range.last + 1)
+                    }
+                }
+
+                Text(
+                    text = annotatedString,
+                    softWrap = false,
+                    style = TextStyle(
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                )
+            }
+        }
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun DebugScreenPreview() {
+    AppTheme {
+        DebugItem(
+            MeshLog(
+                uuid = "",
+                message_type = "NodeInfo",
+                received_date = 1601251258000L,
+                raw_message = "from: 2885173132\n" +
+                        "decoded {\n" +
+                        "   position {\n" +
+                        "       altitude: 60\n" +
+                        "       battery_level: 81\n" +
+                        "       latitude_i: 411111136\n" +
+                        "       longitude_i: -711111805\n" +
+                        "       time: 1600390966\n" +
+                        "   }\n" +
+                        "}\n" +
+                        "hop_limit: 3\n" +
+                        "id: 1737414295\n" +
+                        "rx_snr: 9.5\n" +
+                        "rx_time: 316400569\n" +
+                        "to: -1409790708",
+            )
+        )
+    }
+}
