@@ -173,4 +173,3 @@ internal fun GhostLogContent(
         }
     }
 }
-
