@@ -167,6 +167,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - uses: actions/cache@v4
+        if: matrix.api-level != 26
         id: avd-cache
         with:
           path: |
@@ -175,7 +176,7 @@ jobs:
           key: avd-${{ matrix.api-level }}
 
       - name: create AVD and generate snapshot for caching
-        if: steps.avd-cache.outputs.cache-hit != 'true'
+        if: matrix.api-level != 26 && steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api-level }}
@@ -187,11 +188,11 @@ jobs:
 
       - uses: reactivecircus/android-emulator-runner@v2
         env:
-            ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL: 60
+            ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL: 10
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
-          force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-metrics -camera-back none
+          force-avd-creation: ${{ matrix.api-level == 26 }}
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-metrics -camera-back none
           disable-animations: true
           script: ./gradlew connectedFdroidDebugAndroidTest
