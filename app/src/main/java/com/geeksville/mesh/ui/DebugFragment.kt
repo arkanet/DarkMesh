@@ -17,27 +17,13 @@
 
 package com.geeksville.mesh.ui
 
-import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material.Button
-import androidx.compose.material.OutlinedTextField
-import androidx.compose.material.DropdownMenu
-import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.Card
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
@@ -58,7 +44,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
@@ -129,8 +114,6 @@ class DebugFragment : Fragment() {
 }
 
 private const val LOG_AUTOSCROLL_THRESHOLD = 3
-private const val HEX_RADIX = 16
-private const val DECIMAL_RADIX = 10
 
 private val REGEX_ANNOTATED_NODE_ID = Regex("\\(![0-9a-fA-F]{8}\\)$", RegexOption.MULTILINE)
 
@@ -221,48 +204,6 @@ internal fun DebugScreen(
         contentPadding = contentPadding,
         state = filterState,
     )
-}
-
-
-internal fun parseGhostNodeId(input: String): UInt? {
-    val value = input.trim()
-    if (value.isEmpty()) return null
-    return when {
-        value.startsWith("!") -> value.substring(1).toUIntOrNull(HEX_RADIX)
-        value.startsWith("0x", ignoreCase = true) -> value.substring(2).toUIntOrNull(HEX_RADIX)
-        value.any { it in 'a'..'f' || it in 'A'..'F' } -> value.toUIntOrNull(HEX_RADIX)
-        else -> value.toUIntOrNull(DECIMAL_RADIX)
-    }
-}
-
-internal fun parseGhostChannel(input: String): Int? {
-    val value = input.trim()
-    return if (value.startsWith("0x", ignoreCase = true)) {
-        value.substring(2).toIntOrNull(HEX_RADIX)
-    } else {
-        value.toIntOrNull()
-    }
-}
-
-internal fun filterDiagnosticLogs(logs: List<MeshLog>, filter: String): List<MeshLog> {
-    val query = filter.trim()
-    if (query.isEmpty()) return logs
-    val nodeQuery = query.removePrefix("!")
-    return logs.filter { log ->
-        log.message_type.contains(query, ignoreCase = true) ||
-            log.raw_message.contains(query, ignoreCase = true) ||
-            log.fromNum.toUInt().toString(HEX_RADIX).contains(nodeQuery, ignoreCase = true)
-    }
-}
-
-internal fun formatDiagnosticLog(logs: List<MeshLog>): String = buildString {
-    appendLine("DarkMesh diagnostic log — filtered snapshot")
-    appendLine("Entries: ${logs.size} (recent log window)")
-    val dateFormat = DateFormat.getDateTimeInstance()
-    logs.forEach { log ->
-        appendLine("--- ${dateFormat.format(log.received_date)} | ${log.message_type} ---")
-        appendLine(log.raw_message)
-    }
 }
 
 @Composable
