@@ -90,7 +90,7 @@ jobs:
 
       - name: Check detekt
         continue-on-error: true # Existing baseline has unrelated findings; report remains visible
-      run: ./gradlew detekt
+        run: ./gradlew detekt
 
       - name: Upload build reports
         if: ${{ !cancelled() }}
